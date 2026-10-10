@@ -51,7 +51,7 @@ export interface WebRtcBridgeDeps {
 
 // Controller-supplied ICE config, mapped from the Matter ProvideOffer request.
 export interface ControllerIceConfig {
-  iceServers?: { urLs: string[]; username?: string; credential?: string }[];
+  iceServers?: { urls: string[]; username?: string; credential?: string }[];
   iceTransportPolicy?: string;
 }
 
@@ -411,7 +411,7 @@ export class WebRtcBridge {
     ice?: ControllerIceConfig,
   ): ConstructorParameters<typeof RTCPeerConnection>[0] | undefined {
     const iceServers = (ice?.iceServers ?? []).flatMap((s) =>
-      (s.urLs ?? []).map((url) => ({
+      (s.urls ?? []).map((url) => ({
         urls: url,
         username: s.username,
         credential: s.credential,

@@ -128,7 +128,7 @@ interface AllBridgeFeatureFlags {
    * Default: false (disabled)
    */
   readonly omitEventsInPriming: boolean;
-  /** Advertise Matter 1.5.1 instead of 1.6.0, pairing diagnostic for older Alexa stacks (#449). */
+  /** Advertise Matter 1.5.1 instead of 1.6.1, pairing diagnostic for older Alexa stacks (#449). */
   readonly advertiseSpecVersion151: boolean;
   /** Accept SetTcAcknowledgements instead of rejecting it, pairing experiment for Echo stalls (#449). */
   readonly supportTermsAndConditions: boolean;

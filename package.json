@@ -60,7 +60,7 @@
       "baseline-browser-mapping@<2.11.0": "^2.11.0"
     },
     "patchedDependencies": {
-      "@matter/node@0.17.9": "patches/@matter__node@0.17.9.patch"
+      "@matter/node@0.18.0-alpha.0-20261008-6066b7499": "patches/@matter__node@0.18.0-alpha.0-20261008-6066b7499.patch"
     }
   },
   "devDependencies": {

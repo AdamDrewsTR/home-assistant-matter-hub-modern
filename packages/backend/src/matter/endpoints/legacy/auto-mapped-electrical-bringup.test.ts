@@ -7,6 +7,7 @@ import type {
 } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { Endpoint, VendorId } from "@matter/main";
+import { OnOffPlugInUnitDevice } from "@matter/main/devices";
 import { ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../services/bridges/bridge-data-provider.js";
@@ -156,7 +157,10 @@ describe("auto-mapped power/energy bring-up (#484)", () => {
     });
 
     expect(snapshot.deviceTypes).toEqual([
-      { deviceType: ON_OFF_PLUG_IN_UNIT, revision: 4 },
+      {
+        deviceType: ON_OFF_PLUG_IN_UNIT,
+        revision: OnOffPlugInUnitDevice.deviceRevision,
+      },
       { deviceType: ELECTRICAL_SENSOR, revision: 1 },
       { deviceType: BRIDGED_NODE, revision: 3 },
     ]);

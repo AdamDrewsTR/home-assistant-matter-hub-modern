@@ -281,7 +281,13 @@ describe("createLegacyEndpointType", () => {
       .sort();
     // fanSpeedMemory stays out of ClusterId on purpose: CustomStorage skips
     // loading ClusterId-suffixed contexts, and the speed memory must persist.
-    const expected = [...Object.keys(ClusterId), "fanSpeedMemory"].sort();
+    // binding comes with the client cluster device types (On/Off Sensor,
+    // Doorbell) since matter.js 0.18; controller-written bindings persist too.
+    const expected = [
+      ...Object.keys(ClusterId),
+      "fanSpeedMemory",
+      "binding",
+    ].sort();
     expect(actual).toEqual(expected);
   });
 });

@@ -337,7 +337,7 @@ const featureFlagSchema: JSONSchema7 = {
     advertiseSpecVersion151: {
       title: "Advertise Matter 1.5.1 (Alexa pairing diagnostic)",
       description:
-        "Mask the Matter version identifiers as 1.5.1 instead of 1.6.0, in " +
+        "Mask the Matter version identifiers as 1.5.1 instead of 1.6.1, in " +
         "the BasicInformation attributes and the session parameters. The " +
         "data model itself stays 1.6. Only for diagnosing Alexa pairing " +
         "failures that stop right after the " +

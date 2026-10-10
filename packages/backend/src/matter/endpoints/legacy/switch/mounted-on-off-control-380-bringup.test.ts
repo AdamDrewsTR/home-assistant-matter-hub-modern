@@ -4,6 +4,10 @@ import { join } from "node:path";
 import type { HomeAssistantEntityInformation } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { Endpoint, VendorId } from "@matter/main";
+import {
+  MountedOnOffControlDevice,
+  OnOffPlugInUnitDevice,
+} from "@matter/main/devices";
 import { ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../../services/bridges/bridge-data-provider.js";
@@ -112,8 +116,14 @@ describe("mounted on/off control (#380)", () => {
     await server.close().catch(() => {});
 
     const types = entries.map((e) => e.deviceType);
-    expect(entries).toContainEqual({ deviceType: MOUNTED, revision: 2 });
-    expect(entries).toContainEqual({ deviceType: PLUG, revision: 4 });
+    expect(entries).toContainEqual({
+      deviceType: MOUNTED,
+      revision: MountedOnOffControlDevice.deviceRevision,
+    });
+    expect(entries).toContainEqual({
+      deviceType: PLUG,
+      revision: OnOffPlugInUnitDevice.deviceRevision,
+    });
     // The bridged marker must survive the explicit list.
     expect(types).toContain(BRIDGED_NODE);
     expect(lighting).toBe(true);
