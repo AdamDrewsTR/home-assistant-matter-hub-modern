@@ -41,6 +41,7 @@ let env: Environment;
 let counter = 0;
 let server: ServerNode | undefined;
 let firedEvents: Array<{ type: string; data?: Record<string, unknown> }>;
+let eventTypes: string[];
 
 function registryEntity(entityId: string): HomeAssistantEntityRegistry {
   return {
@@ -71,7 +72,7 @@ function state(
     state: value,
     attributes: {
       device_class: "doorbell",
-      event_types: ["pressed"],
+      event_types: eventTypes,
       event_type: eventType,
       // biome-ignore lint/suspicious/noExplicitAny: test fixture
     } as any,
@@ -120,6 +121,7 @@ beforeEach(() => {
   env.get(VariableService).set("storage.path", dir);
   env.set(BridgeDataProvider, dataProvider());
   firedEvents = [];
+  eventTypes = ["pressed"];
   env.set(HomeAssistantActions, {
     call(_action: HomeAssistantAction) {},
     fireEvent(type: string, data?: Record<string, unknown>) {
@@ -286,5 +288,66 @@ describe("doorbell override bring-up (#419)", () => {
     });
     expect(type).toBeDefined();
     expect(type!.deviceType).toBe(GENERIC_SWITCH);
+  });
+});
+
+describe("generic switch long press", () => {
+  const SWITCH_EVENTS = [
+    "initialPress",
+    "shortRelease",
+    "longPress",
+    "longRelease",
+    "multiPressComplete",
+  ];
+
+  async function mountRecording(types: string[]) {
+    eventTypes = types;
+    const endpoint = await mount({ entityId: ENTITY });
+    const log: string[] = [];
+    for (const name of SWITCH_EVENTS) {
+      // biome-ignore lint/suspicious/noExplicitAny: runtime event access
+      (endpoint.events as any).switch[name]?.on(() => log.push(name));
+    }
+    let second = 1;
+    const send = async (eventType: string) => {
+      await endpoint.updateStates({
+        [ENTITY]: state(`2026-01-01T00:00:0${second++}`, eventType),
+      });
+      await delay(200);
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: read runtime state
+    const position = () => (endpoint.state as any).switch.currentPosition;
+    return { log, send, position };
+  }
+
+  // HA reports a long press after the fact and often never sends a release.
+  // Leaving the switch held let SwitchServer's position reactor emit a second
+  // InitialPress and LongPress and kept CurrentPosition at 1.
+  it.each([
+    ["simple", ["press", "long_press", "long_release"]],
+    ["multi", ["press", "double_press", "long_press", "long_release"]],
+  ])("long_press ends released (%s)", async (_variant, types) => {
+    const { log, send, position } = await mountRecording(types);
+
+    await send("long_press");
+    expect(log).toEqual(["initialPress", "longPress", "longRelease"]);
+    expect(position()).toBe(0);
+
+    // the release that follows is already covered
+    await send("long_release");
+    expect(log).toEqual(["initialPress", "longPress", "longRelease"]);
+    expect(position()).toBe(0);
+  });
+
+  it("a long_release without its long_press still sends the sequence", async () => {
+    const { log, send, position } = await mountRecording([
+      "press",
+      "long_press",
+      "long_release",
+    ]);
+
+    await send("long_release");
+    expect(log).toEqual(["initialPress", "longPress", "longRelease"]);
+    expect(position()).toBe(0);
   });
 });
