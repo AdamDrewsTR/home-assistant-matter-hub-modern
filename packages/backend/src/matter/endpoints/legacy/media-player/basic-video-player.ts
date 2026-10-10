@@ -15,11 +15,14 @@ import { MediaPlayerPowerOnOffServer } from "./behaviors/media-player-power-on-o
 
 // BasicVideoPlayerDevice (deviceType 40) for TVs
 // Required behaviors: onOff, mediaPlayback, keypadInput
+// MediaPlayback stays even without PLAY/PAUSE, the bare matter.js server has
+// no currentState and the endpoint fails to initialize.
 const VideoPlayerEndpointType = BasicVideoPlayerDevice.with(
   BasicInformationServer,
   IdentifyServer,
   HomeAssistantEntityBehavior,
   MediaPlayerKeypadInputServer,
+  MediaPlayerMediaPlaybackServer,
 );
 
 export function VideoPlayerDevice(
@@ -37,19 +40,6 @@ export function VideoPlayerDevice(
     testBit(supportedFeatures, MediaPlayerDeviceFeature.TURN_OFF);
   if (supportsPower) {
     device = device.with(MediaPlayerPowerOnOffServer);
-  }
-
-  // Add playback controls if play or pause is supported
-  const supportsPlay = testBit(
-    supportedFeatures,
-    MediaPlayerDeviceFeature.PLAY,
-  );
-  const supportsPause = testBit(
-    supportedFeatures,
-    MediaPlayerDeviceFeature.PAUSE,
-  );
-  if (supportsPlay || supportsPause) {
-    device = device.with(MediaPlayerMediaPlaybackServer);
   }
 
   if (testBit(supportedFeatures, MediaPlayerDeviceFeature.SELECT_SOURCE)) {
