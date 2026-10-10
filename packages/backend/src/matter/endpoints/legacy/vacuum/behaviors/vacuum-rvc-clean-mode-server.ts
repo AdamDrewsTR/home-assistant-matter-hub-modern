@@ -839,8 +839,8 @@ export function createVacuumRvcCleanModeServer(
 
 /**
  * Create a default RvcCleanMode server with a single "Vacuum" mode.
- * Used for vacuums that don't support multiple cleaning modes
- * (e.g. Roborock via Xiaomi integration, iRobot Roomba, etc.).
+ * Used for vacuums without fan speeds, cleaning modes or a mop intensity
+ * entity. RvcCleanModeServer adds the refused placeholder as second mode.
  *
  * Alexa probes for RvcCleanMode (0x55) during device discovery.
  * Without it, Alexa may fail to complete CASE session establishment
