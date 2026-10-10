@@ -200,11 +200,11 @@ describe("energy evse bring-up (#419 seeding)", () => {
     expect(snapshot.faultState).toBe(0); // NoError
   });
 
-  it("seeds a single Manual mode numbered 0 and selects it (#475)", async () => {
+  it("seeds Manual as mode 0 and selects it (#475)", async () => {
     const snapshot = await bringUp(
       statusEntity("sensor.wallbox_status", "idle"),
     );
-    expect(snapshot.supportedModes).toBe(1);
+    expect(snapshot.supportedModes).toBe(2);
     expect(snapshot.currentMode).toBe(0);
   });
 

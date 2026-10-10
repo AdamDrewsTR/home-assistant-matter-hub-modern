@@ -5,7 +5,12 @@ import {
   EnergyEvseModeServer as EvseModeBase,
   PowerSourceServer as PowerSourceBase,
 } from "@matter/main/behaviors";
-import { EnergyEvse, EnergyEvseMode, PowerSource } from "@matter/main/clusters";
+import {
+  EnergyEvse,
+  EnergyEvseMode,
+  ModeBase,
+  PowerSource,
+} from "@matter/main/clusters";
 import { EnergyEvseDevice } from "@matter/main/devices";
 import { DeviceTypeId } from "@matter/main/types";
 import { EntityStateProvider } from "../../../../../services/bridges/entity-state-provider.js";
@@ -262,20 +267,28 @@ const EvseStatusSeeded = EvseStatusServer.set({
   maximumChargeCurrent: MAX_CHARGE_CURRENT_MA,
 });
 
-// EnergyEvseMode is mandatory. The server asserts a Manual mode tag, so seed a
-// single Manual mode and select it. Features stay off (no charging preferences).
+// EnergyEvseMode is mandatory. The server asserts a Manual mode tag and
+// SupportedModes needs 2 to 255 entries, so Manual comes with a Time of Use
+// mode that is refused (no charging preferences behind it).
 // Modes count from 0: SmartThings addresses them by list position (#475).
+const TIME_OF_USE_MODE = 1;
+
 class EvseModeServer extends EvseModeBase {
   override async initialize() {
-    // A persisted currentMode from before the renumbering would fail the mount.
-    const modes = this.state.supportedModes;
-    if (
-      modes.length > 0 &&
-      !modes.some((m) => m.mode === this.state.currentMode)
-    ) {
-      this.state.currentMode = modes[0].mode;
-    }
+    // A persisted currentMode from before the renumbering (Manual was 1)
+    // would fail the mount or land on Time of Use.
+    this.state.currentMode = 0;
     await super.initialize();
+  }
+
+  override changeToMode(request: ModeBase.ChangeToModeRequest) {
+    if (request.newMode === TIME_OF_USE_MODE) {
+      return {
+        status: ModeBase.ModeChangeStatus.GenericFailure,
+        statusText: "Only Manual is supported",
+      };
+    }
+    return super.changeToMode(request);
   }
 }
 
@@ -285,6 +298,11 @@ const EvseModeSeeded = EvseModeServer.set({
       label: "Manual",
       mode: 0,
       modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
+    },
+    {
+      label: "Time of Use",
+      mode: TIME_OF_USE_MODE,
+      modeTags: [{ value: EnergyEvseMode.ModeTag.TimeOfUse }],
     },
   ],
   currentMode: 0,
