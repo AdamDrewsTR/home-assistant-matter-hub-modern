@@ -116,4 +116,18 @@ describe("extended color light mandatory features (#452)", () => {
     expect(cc.featureMap.xy).toBe(true);
     await server.close();
   });
+
+  it("a color light lists RemainingTime 0", async () => {
+    const { server, endpoint } = await mount(
+      lightEntity(
+        [LightDeviceColorMode.COLOR_TEMP, LightDeviceColorMode.HS],
+        null,
+      ),
+    );
+    // biome-ignore lint/suspicious/noExplicitAny: inspect cluster state
+    const cc = (endpoint.state as any).colorControl;
+    expect(cc.attributeList).toContain(0x0002);
+    expect(cc.remainingTime).toBe(0);
+    await server.close();
+  });
 });

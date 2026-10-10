@@ -588,6 +588,8 @@ export namespace ColorControlServerBase {
 export function ColorControlServer(config: ColorControlConfig) {
   return ColorControlServerBase.set({
     options: { executeIfOff: true },
+    // Mandatory for color lights. matter.js only serves it when a default is set.
+    remainingTime: 0,
     config,
   });
 }
