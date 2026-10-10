@@ -72,19 +72,18 @@ export const deviceClassMapping = (entity: HomeAssistantEntityState) => {
 
   // The Type has to agree with the feature map or controllers drop the device
   // (#304). Lift is always in it (see the cover endpoint), so a tilt-capable
-  // cover can only be Shutter or TiltBlindLift, and tilt-only never applies.
+  // cover can only be TiltBlindLift, and tilt-only never applies.
   const supportedFeatures = attributes(entity).supported_features ?? 0;
   const hasTilt = coverHasTilt(supportedFeatures);
   if (hasTilt) {
-    // Shutter covers both axes, and RollerShutter belongs to it.
-    if (mapping.type === WindowCovering.WindowCoveringType.Shutter) {
-      return mapping;
-    }
     // EndProductType has to belong to the Type, so the lift-only products
     // move to their tilting counterpart, and the rare rest stays Unknown.
+    // Matter 1.6.1 allows Shutter and RollerShutter only on one axis.
     const tiltProducts: Partial<
       Record<WindowCovering.EndProductType, WindowCovering.EndProductType>
     > = {
+      [WindowCovering.EndProductType.RollerShutter]:
+        WindowCovering.EndProductType.ExteriorVenetianBlind,
       [WindowCovering.EndProductType.InteriorBlind]:
         WindowCovering.EndProductType.InteriorBlind,
       [WindowCovering.EndProductType.CentralCurtain]:
