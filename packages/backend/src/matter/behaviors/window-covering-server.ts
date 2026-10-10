@@ -336,18 +336,36 @@ export class WindowCoveringServerBase extends FeaturedBase {
     }
 
     // Default Rollershade fails conformance for tilt-capable covers (#323).
-    this.state.type =
-      this.features.lift && this.features.tilt
-        ? WindowCovering.WindowCoveringType.TiltBlindLift
-        : this.features.tilt
-          ? WindowCovering.WindowCoveringType.TiltBlindTiltOnly
-          : WindowCovering.WindowCoveringType.Rollershade;
+    // update() skips a state without attributes, and Matter 1.6.1 checks
+    // endProductType against tilt too, so set both here.
+    const shape = this.defaultShape();
+    this.state.type = shape.type;
+    this.state.endProductType = shape.endProductType;
 
     await super.initialize();
     const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
     this.update(homeAssistant.entity);
     this.reactTo(homeAssistant.onChange, this.update, { lock: true });
     this.reactTo(homeAssistant.events.actionFailed, this.dropOptimistic);
+  }
+
+  private defaultShape() {
+    if (this.features.lift && this.features.tilt) {
+      return {
+        type: WindowCovering.WindowCoveringType.TiltBlindLift,
+        endProductType: WindowCovering.EndProductType.SheerShade,
+      };
+    }
+    if (this.features.tilt) {
+      return {
+        type: WindowCovering.WindowCoveringType.TiltBlindTiltOnly,
+        endProductType: WindowCovering.EndProductType.TiltOnlyInteriorBlind,
+      };
+    }
+    return {
+      type: WindowCovering.WindowCoveringType.Rollershade,
+      endProductType: WindowCovering.EndProductType.RollerShade,
+    };
   }
 
   // The HA call failed, so the move never started. Without this the re-applied
@@ -495,6 +513,7 @@ export class WindowCoveringServerBase extends FeaturedBase {
 
     const overrideType = config.getCoverType?.(state, this.agent);
     const overrideEndProduct = config.getEndProductType?.(state, this.agent);
+    const shape = this.defaultShape();
 
     // On the Stopped -> Moving transition, write only operationalStatus and
     // target. Apple Home derives direction from target-vs-current; if a fresh
@@ -512,20 +531,8 @@ export class WindowCoveringServerBase extends FeaturedBase {
     const appliedPatch = applyPatchState<WindowCoveringServerBase.State>(
       this.state,
       {
-        type:
-          overrideType ??
-          (this.features.lift && this.features.tilt
-            ? WindowCovering.WindowCoveringType.TiltBlindLift
-            : this.features.tilt
-              ? WindowCovering.WindowCoveringType.TiltBlindTiltOnly
-              : WindowCovering.WindowCoveringType.Rollershade),
-        endProductType:
-          overrideEndProduct ??
-          (this.features.lift && this.features.tilt
-            ? WindowCovering.EndProductType.SheerShade
-            : this.features.tilt
-              ? WindowCovering.EndProductType.TiltOnlyInteriorBlind
-              : WindowCovering.EndProductType.RollerShade),
+        type: overrideType ?? shape.type,
+        endProductType: overrideEndProduct ?? shape.endProductType,
         // Target before operationalStatus so the wire order matches the
         // certified Eve MotionBlinds (state, target, current). Patch insertion
         // order propagates into matter.js's changeList via for-in over values

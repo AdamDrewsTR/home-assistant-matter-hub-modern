@@ -65,6 +65,7 @@ afterEach(() => {
 
 function coverEntity(
   supportedFeatures: number,
+  extra: Record<string, unknown> = {},
 ): HomeAssistantEntityInformation {
   const state = {
     entity_id: "cover.blind",
@@ -74,6 +75,7 @@ function coverEntity(
       supported_features: supportedFeatures,
       current_position: 50,
       current_tilt_position: 50,
+      ...extra,
     },
     context: { id: "ctx" },
     last_changed: "2026-01-01T00:00:00",
@@ -83,7 +85,11 @@ function coverEntity(
   return { entity_id: "cover.blind", state: state as any };
 }
 
-async function mount(supportedFeatures: number) {
+async function mount(
+  supportedFeatures: number,
+  extra?: Record<string, unknown>,
+  options: object = {},
+) {
   const server = await ServerNode.create({
     // biome-ignore lint/suspicious/noExplicitAny: env valid at runtime
     environment: env as any,
@@ -95,8 +101,8 @@ async function mount(supportedFeatures: number) {
   const aggregator = new AggregatorEndpoint("aggregator");
   await server.add(aggregator);
   const endpoint = new Endpoint(
-    CoverDevice({ entity: coverEntity(supportedFeatures) } as never),
-    { id: "blind" },
+    CoverDevice({ entity: coverEntity(supportedFeatures, extra) } as never),
+    { id: "blind", ...options },
   );
   await aggregator.add(endpoint);
   return { server, endpoint };
@@ -180,5 +186,37 @@ describe("full-tilt cover keeps discrete tilt services (#405 regression)", () =>
     const tiltCalls = calls.map((c) => c.action);
     expect(tiltCalls).toContain("cover.open_cover_tilt");
     expect(tiltCalls).not.toContain("cover.set_cover_tilt_position");
+  });
+});
+
+describe("tilting cover shape stays valid on Matter 1.6.1", () => {
+  it("mounts a tilting shutter as an exterior venetian blind", async () => {
+    // Shutter and RollerShutter are single axis now and failed the mount
+    const { server, endpoint } = await mount(FULL_TILT, {
+      device_class: "shutter",
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: inspect cluster state
+    const wc = (endpoint.state as any).windowCovering;
+    expect(wc.type).toBe(WindowCovering.WindowCoveringType.TiltBlindLift);
+    expect(wc.endProductType).toBe(
+      WindowCovering.EndProductType.ExteriorVenetianBlind,
+    );
+    await server.close().catch(() => {});
+  });
+
+  it("mounts a lift and tilt cover whose state has no attributes yet", async () => {
+    // update() skips this state, so the RollerShade default would stay
+    const bare = {
+      entity_id: "cover.blind",
+      state: { entity_id: "cover.blind", state: "unavailable" },
+    };
+    const { server, endpoint } = await mount(FULL_TILT, undefined, {
+      homeAssistantEntity: { entity: bare },
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: inspect cluster state
+    const wc = (endpoint.state as any).windowCovering;
+    expect(wc.type).toBe(WindowCovering.WindowCoveringType.TiltBlindLift);
+    expect(wc.endProductType).toBe(WindowCovering.EndProductType.SheerShade);
+    await server.close().catch(() => {});
   });
 });
