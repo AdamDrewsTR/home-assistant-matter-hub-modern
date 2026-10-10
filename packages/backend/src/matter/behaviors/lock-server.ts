@@ -1,5 +1,5 @@
 import type { HomeAssistantEntityInformation } from "@home-assistant-matter-hub/common";
-import { Logger } from "@matter/general";
+import { Logger, Seconds, Time, type Timer } from "@matter/general";
 import { DoorLockServer as Base } from "@matter/main/behaviors";
 import { DoorLock } from "@matter/main/clusters";
 import {
@@ -523,6 +523,32 @@ export async function applyClearUser(
   );
 }
 
+// UnlockWithTimeout relocks through HA once the timeout is up. The timer lives
+// in matter.js' autoRelockTimer, which its DoorLockServer stops on close, and
+// every later lock command clears or replaces it.
+function scheduleRelock(
+  server: {
+    readonly internal: { autoRelockTimer?: Timer };
+    readonly env: Base["env"];
+    readonly agent: Base["agent"];
+    readonly state: { config: LockServerConfig };
+  },
+  seconds = 0,
+) {
+  const { internal } = server;
+  internal.autoRelockTimer?.stop();
+  internal.autoRelockTimer = undefined;
+  if (seconds === 0) {
+    return;
+  }
+  const actions = server.env.get(HomeAssistantActions);
+  const { entityId } = server.agent.get(HomeAssistantEntityBehavior);
+  const lock = server.state.config.lock(void 0, server.agent);
+  internal.autoRelockTimer = Time.getTimer("relock", Seconds(seconds), () =>
+    actions.call(lock, entityId),
+  ).start();
+}
+
 /**
  * DoorLock server without PIN or User, for lockWithoutPin (#418).
  * Plain lock/unlock, no credential workflow.
@@ -555,12 +581,19 @@ class LockServerBase extends PlainBase {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     const action = this.state.config.lock(void 0, this.agent);
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override unlockDoor() {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     const action = this.state.config.unlock(void 0, this.agent);
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    this.unlockDoor();
+    scheduleRelock(this, request.timeout);
   }
 }
 
@@ -623,6 +656,7 @@ class LockServerWithUnboltBase extends UnboltBase {
   override lockDoor() {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     homeAssistant.callAction(this.state.config.lock(void 0, this.agent));
+    scheduleRelock(this);
   }
 
   override unlockDoor() {
@@ -633,11 +667,18 @@ class LockServerWithUnboltBase extends UnboltBase {
         ? unlatch(void 0, this.agent)
         : this.state.config.unlock(void 0, this.agent),
     );
+    scheduleRelock(this);
+  }
+
+  override unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    this.unlockDoor();
+    scheduleRelock(this, request.timeout);
   }
 
   override unboltDoor() {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     homeAssistant.callAction(this.state.config.unlock(void 0, this.agent));
+    scheduleRelock(this);
   }
 }
 
@@ -785,6 +826,7 @@ class LockServerWithPinBase extends PinCredentialBase {
     }
 
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest) {
@@ -824,6 +866,12 @@ class LockServerWithPinBase extends PinCredentialBase {
     }
 
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override async unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    await this.unlockDoor(request);
+    scheduleRelock(this, request.timeout);
   }
 
   override getUser(request: DoorLock.GetUserRequest): DoorLock.GetUserResponse {
@@ -1033,6 +1081,7 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest) {
@@ -1074,6 +1123,12 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override async unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    await this.unlockDoor(request);
+    scheduleRelock(this, request.timeout);
   }
 
   override async unboltDoor(request: DoorLock.UnboltDoorRequest) {
@@ -1111,6 +1166,7 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override getUser(request: DoorLock.GetUserRequest): DoorLock.GetUserResponse {
