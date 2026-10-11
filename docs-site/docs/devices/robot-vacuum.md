@@ -60,6 +60,8 @@ The RVC Clean Mode cluster allows selecting the cleaning type. This is auto-enab
 | Vacuum & Mop | Vacuum + Mop | Vacuum and mop simultaneously |
 | Vacuum Then Mop | DeepClean + Vacuum + Mop | Vacuum first, then mop (Apple Home shows as "Deep Clean") |
 
+Matter needs at least two cleaning modes. A vacuum with nothing to choose gets an extra "Auto" mode next to Vacuum. Picking it is refused and nothing reaches Home Assistant. Apple Home lists it as "Automatic".
+
 :::note
 **Fallback behavior (v2.0.26+):** If your cleaning mode entity doesn't have a dedicated "Vacuum Then Mop" option, HAMH automatically falls back to the "Vacuum & Mop" option. So you only need `vacuum`, `mop`, and `vacuum_and_mop` in your cleaning mode entity.
 :::

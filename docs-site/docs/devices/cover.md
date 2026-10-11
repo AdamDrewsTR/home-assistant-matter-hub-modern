@@ -18,7 +18,7 @@ The following `device_class` values are supported:
 - `blind`
 - `curtain`
 - `shade`
-- `shutter`
+- `shutter` (with tilt it is exposed as an exterior venetian blind, Matter 1.6.1 allows the Shutter type only on one axis)
 - `awning`
 - `window` (Velux-style motorized windows; mapped to lift-only Rollershade)
 - `garage` (limited support)

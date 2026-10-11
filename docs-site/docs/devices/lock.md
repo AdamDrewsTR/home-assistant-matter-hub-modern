@@ -6,6 +6,7 @@ Home Assistant `lock` entities are mapped to Matter **DoorLock** devices with PI
 
 - **Lock**, Always allowed, no PIN required
 - **Unlock**, Requires PIN if credentials are configured
+- **Unlock with timeout**, Unlocks through Home Assistant like Unlock and locks again when the timeout runs out
 - **Unlatch / Unbolt**, Available when the HA entity supports the `OPEN` feature. Unlatch (unlock) maps to `lock.open`, unbolt maps to `lock.unlock`. Apple Home shows an "Unlatch" button.
 
 ## State Mapping
