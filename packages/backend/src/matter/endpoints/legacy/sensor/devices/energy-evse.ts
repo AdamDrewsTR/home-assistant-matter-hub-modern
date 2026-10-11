@@ -12,7 +12,11 @@ import {
   PowerSource,
 } from "@matter/main/clusters";
 import { EnergyEvseDevice } from "@matter/main/devices";
-import { DeviceTypeId } from "@matter/main/types";
+import {
+  DeviceTypeId,
+  StatusCode,
+  StatusResponseError,
+} from "@matter/main/types";
 import { EntityStateProvider } from "../../../../../services/bridges/entity-state-provider.js";
 import { HomeAssistantActions } from "../../../../../services/home-assistant/home-assistant-actions.js";
 import { applyPatchState } from "../../../../../utils/apply-patch-state.js";
@@ -53,12 +57,19 @@ function clearEvseChargingTimer(endpoint: object) {
   }
 }
 
+// PREF is mandatory in the cluster and already on at runtime; with() only
+// brings in its typing.
+const EvsePrefBase = EvseBase.with("ChargingPreferences");
+
 // Drives the EnergyEvse cluster from the mapped charger STATUS entity and
 // implements the EnableCharging / Disable commands (the default
 // EnergyEvseServer leaves them unimplemented, so without these overrides the
 // acceptedCommandList would stay empty). Charging is started/stopped through
 // the mapped switch, and the charge current through the mapped number entity.
-class EvseStatusServer extends EvseBase {
+// biome-ignore lint/correctness/noUnusedVariables: merged with the State namespace below
+class EvseStatusServer extends EvsePrefBase {
+  declare state: EvseStatusServer.State;
+
   override async initialize() {
     await super.initialize();
     const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
@@ -253,6 +264,58 @@ class EvseStatusServer extends EvseBase {
         `disable ignored for ${homeAssistant.entityId}: no charging switch mapped`,
       );
     }
+  }
+
+  // PREF is mandatory for the cluster. HAMH only runs Manual mode and can't
+  // schedule charging in HA, so the targets are just kept for GetTargets and
+  // the NextCharge* attributes stay null. A day sent again replaces its targets.
+  override setTargets({
+    chargingTargetSchedules,
+  }: EnergyEvse.SetTargetsRequest) {
+    const days = new Set<string>();
+    for (const { dayOfWeekForSequence } of chargingTargetSchedules) {
+      for (const [day, on] of Object.entries(dayOfWeekForSequence)) {
+        if (!on) continue;
+        if (days.has(day)) {
+          throw new StatusResponseError(
+            `${day} is in more than one schedule`,
+            StatusCode.ConstraintError,
+          );
+        }
+        days.add(day);
+      }
+    }
+    const kept = this.state.chargingTargetSchedules.map((schedule) => ({
+      ...schedule,
+      dayOfWeekForSequence: Object.fromEntries(
+        Object.entries(schedule.dayOfWeekForSequence).map(([day, on]) => [
+          day,
+          !!on && !days.has(day),
+        ]),
+      ),
+    }));
+    this.state.chargingTargetSchedules = [
+      ...kept,
+      ...chargingTargetSchedules,
+    ].filter(
+      (schedule) =>
+        schedule.chargingTargets.length > 0 &&
+        Object.values(schedule.dayOfWeekForSequence).some(Boolean),
+    );
+  }
+
+  override getTargets() {
+    return { chargingTargetSchedules: this.state.chargingTargetSchedules };
+  }
+
+  override clearTargets() {
+    this.state.chargingTargetSchedules = [];
+  }
+}
+
+namespace EvseStatusServer {
+  export class State extends EvsePrefBase.State {
+    chargingTargetSchedules: EnergyEvse.ChargingTargetSchedule[] = [];
   }
 }
 
