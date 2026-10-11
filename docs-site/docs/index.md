@@ -378,7 +378,11 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.929)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.930)</strong></summary>
+
+**v2.1.0-alpha.930:**
+- 🧵 **matter.js 0.18 RC (nightly 0.18.0-alpha.0-20261008)**: brings Matter 1.6.1. Controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. If something pairs or behaves differently than on alpha.929, please open an issue with the diagnostic export
+- 🔇 **matter.js device type checks stay off at runtime**: 0.18 can check every endpoint against its device type and log a warning for each deviation at every start. HAMH turns that off, the endpoint shapes are covered by its tests
 
 **v2.1.0-alpha.929:**
 - 🧹 **Vacuums with one cleaning mode get a second "Auto" mode**: Matter needs at least two cleaning modes, and the coming matter.js 0.18 refuses a vacuum with only one. Picking "Auto" is refused and nothing is sent to Home Assistant. Apple Home shows it as "Automatic"
