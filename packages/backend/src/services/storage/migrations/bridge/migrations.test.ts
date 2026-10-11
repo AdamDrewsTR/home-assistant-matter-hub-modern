@@ -4,6 +4,7 @@ import { migrateBridgeV1ToV2 } from "./v1-to-v2.js";
 import { migrateBridgeV2ToV3 } from "./v2-to-v3.js";
 import { migrateBridgeV3ToV4 } from "./v3-to-v4.js";
 import { migrateBridgeV4ToV5 } from "./v4-to-v5.js";
+import { migrateBridgeV5ToV6 } from "./v5-to-v6.js";
 
 function freshContext(): StorageContext {
   const backend = new StorageBackendMemory();
@@ -169,8 +170,35 @@ describe("migrateBridgeV4ToV5", () => {
   });
 });
 
+describe("migrateBridgeV5ToV6", () => {
+  let storage: StorageContext;
+  beforeEach(() => {
+    storage = freshContext();
+  });
+
+  it("drops omitEventsInPriming and keeps the other flags", async () => {
+    await storage.set("ids", ["b1"]);
+    await storage.set("b1", {
+      id: "b1",
+      featureFlags: { omitEventsInPriming: true, keepMe: true },
+    } as unknown as Record<string, string>);
+
+    expect(await migrateBridgeV5ToV6(storage)).toBe(6);
+    expect(await migrateBridgeV5ToV6(storage)).toBe(6);
+    const flags = await readFlags(storage, "b1");
+    expect(Object.keys(flags)).toEqual(["keepMe"]);
+  });
+
+  it("skips bridges without featureFlags", async () => {
+    await storage.set("ids", ["b1"]);
+    await storage.set("b1", { id: "b1" } as unknown as Record<string, string>);
+
+    await expect(migrateBridgeV5ToV6(storage)).resolves.toBe(6);
+  });
+});
+
 describe("migration chain", () => {
-  it("carries a v1 bridge through the full v1 → v5 path", async () => {
+  it("carries a v1 bridge through every migration", async () => {
     const storage = freshContext();
     await storage.set("ids", JSON.stringify(["b1"]));
     await storage.set(
@@ -181,6 +209,7 @@ describe("migration chain", () => {
         featureFlags: {
           mimicHaCoverPercentage: true,
           matterFans: true,
+          omitEventsInPriming: true,
         },
       }),
     );
@@ -189,6 +218,7 @@ describe("migration chain", () => {
     expect(await migrateBridgeV2ToV3(storage)).toBe(3);
     expect(await migrateBridgeV3ToV4(storage)).toBe(4);
     expect(await migrateBridgeV4ToV5(storage)).toBe(5);
+    expect(await migrateBridgeV5ToV6(storage)).toBe(6);
 
     const bridge = await readBridge(storage, "b1");
     expect(bridge.compatibility).toBeUndefined();
@@ -197,5 +227,6 @@ describe("migration chain", () => {
     expect(flags.coverSwapOpenClose).toBeUndefined();
     expect(flags.mimicHaCoverPercentage).toBeUndefined();
     expect(flags.matterFans).toBeUndefined();
+    expect("omitEventsInPriming" in flags).toBe(false);
   });
 });

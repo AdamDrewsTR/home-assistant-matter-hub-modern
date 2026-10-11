@@ -6,6 +6,7 @@ import { migrateBridgeV1ToV2 } from "./migrations/bridge/v1-to-v2.js";
 import { migrateBridgeV2ToV3 } from "./migrations/bridge/v2-to-v3.js";
 import { migrateBridgeV3ToV4 } from "./migrations/bridge/v3-to-v4.js";
 import { migrateBridgeV4ToV5 } from "./migrations/bridge/v4-to-v5.js";
+import { migrateBridgeV5ToV6 } from "./migrations/bridge/v5-to-v6.js";
 
 type StorageObjectType = { [key: string]: SupportedStorageTypes };
 
@@ -75,6 +76,8 @@ export class BridgeStorage extends Service {
       migratedVersion = await migrateBridgeV3ToV4(this.storage);
     } else if (version === 4) {
       migratedVersion = await migrateBridgeV4ToV5(this.storage);
+    } else if (version === 5) {
+      migratedVersion = await migrateBridgeV5ToV6(this.storage);
     }
     if (migratedVersion !== version) {
       await this.storage.set("version", migratedVersion);
