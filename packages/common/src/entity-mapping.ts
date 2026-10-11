@@ -359,6 +359,12 @@ export interface EntityMappingConfig {
    */
   readonly coverSwapOpenClose?: boolean;
   /**
+   * Optional: send open/close as set_cover_position 100/0. Some integrations
+   * (Cover Time Based) only stop on an open/close while moving but reverse on
+   * a position (#512). Covers without set_position keep open/close.
+   */
+  readonly coverOpenCloseAsPosition?: boolean;
+  /**
    * Optional: expose this cover as a Dimmable Light instead of a WindowCovering.
    * Level maps to position (100% open), on/off to open/close. Alexa workaround,
    * it stopped sending cover position commands but still drives lights (#372).
@@ -543,6 +549,7 @@ export interface EntityMappingRequest {
   readonly disableCustomAreaRoomModes?: boolean;
   readonly valetudoIdentifier?: string;
   readonly coverSwapOpenClose?: boolean;
+  readonly coverOpenCloseAsPosition?: boolean;
   readonly coverExposeAsDimmableLight?: boolean;
   readonly selectExposeAsSwitch?: boolean;
   readonly selectSwitchOnOption?: string;

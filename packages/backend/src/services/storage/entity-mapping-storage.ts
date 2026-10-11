@@ -209,6 +209,7 @@ export class EntityMappingStorage extends Service {
         request.disableCustomAreaRoomModes || undefined,
       valetudoIdentifier: request.valetudoIdentifier?.trim() || undefined,
       coverSwapOpenClose: request.coverSwapOpenClose || undefined,
+      coverOpenCloseAsPosition: request.coverOpenCloseAsPosition || undefined,
       coverExposeAsDimmableLight:
         request.coverExposeAsDimmableLight || undefined,
       selectExposeAsSwitch: request.selectExposeAsSwitch || undefined,
@@ -278,6 +279,7 @@ export class EntityMappingStorage extends Service {
       !config.disableCustomAreaRoomModes &&
       !config.valetudoIdentifier &&
       !config.coverSwapOpenClose &&
+      !config.coverOpenCloseAsPosition &&
       !config.coverExposeAsDimmableLight &&
       !config.selectExposeAsSwitch &&
       !config.selectSwitchOnOption &&

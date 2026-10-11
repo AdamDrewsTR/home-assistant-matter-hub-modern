@@ -276,6 +276,19 @@ For covers where Home Assistant reports inverted position values.
 
 ---
 
+## Cover That Reverses Only on a Position
+
+For covers that stop instead of reversing when they get open/close while moving (#512).
+
+```json
+{
+  "entityId": "cover.living_room_blind",
+  "coverOpenCloseAsPosition": true
+}
+```
+
+---
+
 ## Using Mapping Profiles
 
 You can export and import mapping configurations as profiles via the HAMH UI or API:

@@ -257,13 +257,28 @@ const liftFallsBackToTilt = (agent: Agent): boolean => {
   return liftShouldUseTilt(supportedFeatures);
 };
 
-const openLiftAction = (agent: Agent) => ({
-  action: shouldSwapOpenClose(agent) ? "cover.close_cover" : "cover.open_cover",
-});
+// Per cover, open/close go out as set_cover_position 100/0 at the HA end the
+// open/close service would hit. Cover Time Based only stops on an open/close
+// while moving but reverses on a position (#512).
+const liftEndAction = (end: "open" | "close", agent: Agent) => {
+  const homeAssistant = agent.get(HomeAssistantEntityBehavior);
+  if (
+    homeAssistant.state.mapping?.coverOpenCloseAsPosition &&
+    supportsPositionControl(agent)
+  ) {
+    return {
+      action: "cover.set_cover_position",
+      data: { position: end === "open" ? 100 : 0 },
+    };
+  }
+  return { action: `cover.${end}_cover` };
+};
 
-const closeLiftAction = (agent: Agent) => ({
-  action: shouldSwapOpenClose(agent) ? "cover.open_cover" : "cover.close_cover",
-});
+const openLiftAction = (agent: Agent) =>
+  liftEndAction(shouldSwapOpenClose(agent) ? "close" : "open", agent);
+
+const closeLiftAction = (agent: Agent) =>
+  liftEndAction(shouldSwapOpenClose(agent) ? "open" : "close", agent);
 
 const setTiltPositionAction = (position: number, agent: Agent) => {
   // For binary tilt covers (no tilt position support), translate to open/close tilt

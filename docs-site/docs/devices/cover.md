@@ -79,6 +79,12 @@ Alexa sends everything as a lift percentage: open/close hit the 0/100% ends, "se
 
 Fix: enable `coverSwapOpenClose` on the cover itself in the Entity Mapping dialog and leave the bridge-level flag off. Per cover it swaps only open/close and keeps the default percentage inversion, so open, close and set-to-N% all come out correct. One catch: saying "set to exactly 0%" or "100%" still counts as open/close.
 
+### Close while opening only stops the cover (#512) {#cover-open-close-as-position-512}
+
+Some integrations, for example [Cover Time Based](https://github.com/Sese-Schneider/ha-cover-time-based), stop when they get `open_cover` or `close_cover` while the cover is moving, and only reverse on `set_cover_position`. Alexa sends "open" and "close" as the 0% and 100% lift ends, which HAMH turns into `open_cover` / `close_cover`, so "close" during an opening move just stops it.
+
+Fix: turn on **Send open/close as position** (`coverOpenCloseAsPosition`) on that cover in the Entity Mapping dialog. Open and close then go out as `set_cover_position` 100 and 0, from every controller, and the swap setting still applies. Covers without `set_position` keep open/close. Note that a cover already at the end gets no extra open/close, so integrations that resync on a repeated open/close will not do that here. On a cover group, turn it on only if every member handles a position at its ends.
+
 ### Percentage shows wrong value in Alexa
 
 Try enabling `coverUseHomeAssistantPercentage` in bridge settings. Alexa may interpret the Matter percentage differently than other controllers.

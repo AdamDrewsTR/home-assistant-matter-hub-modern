@@ -77,6 +77,7 @@ export function entityMappingApi(
       disableCustomAreaRoomModes: body.disableCustomAreaRoomModes,
       valetudoIdentifier: body.valetudoIdentifier,
       coverSwapOpenClose: body.coverSwapOpenClose,
+      coverOpenCloseAsPosition: body.coverOpenCloseAsPosition,
       coverExposeAsDimmableLight: body.coverExposeAsDimmableLight,
       selectExposeAsSwitch: body.selectExposeAsSwitch,
       selectSwitchOnOption: body.selectSwitchOnOption,

@@ -174,6 +174,8 @@ export function EntityMappingDialog({
   const [areaDataDrafts, setAreaDataDrafts] = useState<string[]>([]);
   const [valetudoIdentifier, setValetudoIdentifier] = useState("");
   const [coverSwapOpenClose, setCoverSwapOpenClose] = useState(false);
+  const [coverOpenCloseAsPosition, setCoverOpenCloseAsPosition] =
+    useState(false);
   const [coverExposeAsDimmableLight, setCoverExposeAsDimmableLight] =
     useState(false);
   const [selectExposeAsSwitch, setSelectExposeAsSwitch] = useState(false);
@@ -291,6 +293,9 @@ export function EntityMappingDialog({
       );
       setValetudoIdentifier(currentMapping?.valetudoIdentifier || "");
       setCoverSwapOpenClose(currentMapping?.coverSwapOpenClose || false);
+      setCoverOpenCloseAsPosition(
+        currentMapping?.coverOpenCloseAsPosition || false,
+      );
       setCoverExposeAsDimmableLight(
         currentMapping?.coverExposeAsDimmableLight || false,
       );
@@ -457,6 +462,7 @@ export function EntityMappingDialog({
       fanWindPresets,
       valetudoIdentifier: valetudoIdentifier.trim() || undefined,
       coverSwapOpenClose: coverSwapOpenClose || undefined,
+      coverOpenCloseAsPosition: coverOpenCloseAsPosition || undefined,
       coverExposeAsDimmableLight: coverExposeAsDimmableLight || undefined,
       selectExposeAsSwitch: selectExposeAsSwitch || undefined,
       selectSwitchOnOption: selectExposeAsSwitch
@@ -530,6 +536,7 @@ export function EntityMappingDialog({
     fanSleepPresets,
     valetudoIdentifier,
     coverSwapOpenClose,
+    coverOpenCloseAsPosition,
     coverExposeAsDimmableLight,
     selectExposeAsSwitch,
     selectSwitchOnOption,
@@ -1549,6 +1556,18 @@ export function EntityMappingDialog({
                 />
               }
               label="Swap open/close commands (for awnings and similar covers)"
+              sx={{ mt: 1, display: "block" }}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={coverOpenCloseAsPosition}
+                  onChange={(e) =>
+                    setCoverOpenCloseAsPosition(e.target.checked)
+                  }
+                />
+              }
+              label="Send open/close as position 100% / 0% (for covers that stop instead of reversing on open/close while moving)"
               sx={{ mt: 1, display: "block" }}
             />
             <FormControlLabel

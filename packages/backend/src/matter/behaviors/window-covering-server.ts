@@ -198,6 +198,13 @@ function haRestEnd(action: HomeAssistantAction): "open" | "close" | null {
   if (action.action.includes("close_cover")) {
     return "close";
   }
+  // coverOpenCloseAsPosition sends the ends as a position (#512)
+  if (action.action === "cover.set_cover_position") {
+    const position = (action.data as { position?: number } | undefined)
+      ?.position;
+    if (position === 100) return "open";
+    if (position === 0) return "close";
+  }
   return null;
 }
 
