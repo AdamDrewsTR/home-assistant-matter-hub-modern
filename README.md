@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.930 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.931 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,12 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.930)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.931)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.931:**
+- 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again
+- 🔁 **Session rotation is opt-in in server mode too**: server mode bridges no longer close controller sessions every 4 h. Set Session Rotation Max Age if you want it back. When HAMH closes a session itself, it closes its subscriptions first
+- 🔌 **EV chargers answer charging target commands**: SetTargets, GetTargets and ClearTargets are accepted and stored, nothing is sent to Home Assistant
 
 **v2.1.0-alpha.930:**
 - 🧵 **matter.js 0.18 RC (nightly 0.18.0-alpha.0-20261008)**: brings Matter 1.6.1. Controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. If something pairs or behaves differently than on alpha.929, please open an issue with the diagnostic export
