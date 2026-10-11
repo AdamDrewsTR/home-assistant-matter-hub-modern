@@ -51,6 +51,8 @@ describe("EntityMappingStorage orphan tombstone", () => {
 
     reloaded.clearMappingMissing("b", "light.x");
     expect(missingSince(reloaded.getMapping("b", "light.x"))).toBeUndefined();
+    // the clear schedules a debounced write, flush it before the dir goes away
+    await reloaded.dispose();
   });
 
   it("no-ops mark/clear when there is no such mapping", async () => {
