@@ -399,9 +399,6 @@ export class Bridge {
   async update(update: UpdateBridgeRequest) {
     try {
       this.dataProvider.update(update);
-      // Read live, so changes need no restart (#424).
-      this.server.hamhOmitEventsInPriming =
-        this.dataProvider.featureFlags?.omitEventsInPriming === true;
       await this.refreshDevices();
       // Re-evaluate auto force sync and session rotation after config update
       if (this.status.code === BridgeStatus.Running) {

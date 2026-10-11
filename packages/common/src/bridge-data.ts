@@ -122,12 +122,6 @@ interface AllBridgeFeatureFlags {
    * Default: false (disabled)
    */
   readonly fastSessionRecovery: boolean;
-  /**
-   * Omit stored events that break Google priming subscriptions (#424).
-   * Live events still work. Off-spec; opt in per bridge.
-   * Default: false (disabled)
-   */
-  readonly omitEventsInPriming: boolean;
   /** Advertise Matter 1.5.1 instead of 1.6.1, pairing diagnostic for older Alexa stacks (#449). */
   readonly advertiseSpecVersion151: boolean;
   /** Accept SetTcAcknowledgements instead of rejecting it, pairing experiment for Echo stalls (#449). */

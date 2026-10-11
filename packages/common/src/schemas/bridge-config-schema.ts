@@ -387,18 +387,6 @@ const featureFlagSchema: JSONSchema7 = {
       default: false,
     },
 
-    omitEventsInPriming: {
-      title: "Omit Events From Priming (Google offline workaround)",
-      description:
-        "Omit stored StartUp and BootReason events from priming reports. " +
-        "Some Google controllers ack chunks but do not answer the final event " +
-        "chunk, aborting the subscription and leaving the device offline " +
-        "(#424). Live events still work. Off-spec; enable only for affected " +
-        "Google fabrics. Applies to the next subscription. Default off.",
-      type: "boolean",
-      default: false,
-    },
-
     stableIdentity: {
       title: "Stable Device Identity",
       description:

@@ -34,8 +34,6 @@ export class ServerModeServerNode extends ServerNode {
   private readonly deviceEndpoints = new Map<string, Endpoint>();
   private readonly featureFlags?: BridgeFeatureFlags;
   private readonly serialNumberSuffix?: string;
-  // Used by patched ServerSubscription for priming reports (#424).
-  hamhOmitEventsInPriming: boolean;
 
   constructor(env: Environment, bridgeData: BridgeData) {
     super({
@@ -81,8 +79,6 @@ export class ServerModeServerNode extends ServerNode {
     });
     this.featureFlags = bridgeData.featureFlags;
     this.serialNumberSuffix = bridgeData.serialNumberSuffix;
-    this.hamhOmitEventsInPriming =
-      bridgeData.featureFlags?.omitEventsInPriming === true;
   }
 
   /** Number of device endpoints currently attached. */

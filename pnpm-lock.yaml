@@ -29,11 +29,6 @@ overrides:
   browserslist@<4.28.7: ^4.28.7
   baseline-browser-mapping@<2.11.0: ^2.11.0
 
-patchedDependencies:
-  '@matter/node@0.18.0-alpha.0-20261008-6066b7499':
-    hash: ccacd9714bff1ce3e2eb7c2bdc9bede816c7579c8664a59096c1fcd8baa0affe
-    path: patches/@matter__node@0.18.0-alpha.0-20261008-6066b7499.patch
-
 importers:
 
   .:
@@ -5779,7 +5774,7 @@ snapshots:
     dependencies:
       '@matter/general': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/model': 0.18.0-alpha.0-20261008-6066b7499
-      '@matter/node': 0.18.0-alpha.0-20261008-6066b7499(patch_hash=ccacd9714bff1ce3e2eb7c2bdc9bede816c7579c8664a59096c1fcd8baa0affe)
+      '@matter/node': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/protocol': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/types': 0.18.0-alpha.0-20261008-6066b7499
     optionalDependencies:
@@ -5789,7 +5784,7 @@ snapshots:
     dependencies:
       '@matter/general': 0.18.0-alpha.0-20261008-6066b7499
 
-  '@matter/node@0.18.0-alpha.0-20261008-6066b7499(patch_hash=ccacd9714bff1ce3e2eb7c2bdc9bede816c7579c8664a59096c1fcd8baa0affe)':
+  '@matter/node@0.18.0-alpha.0-20261008-6066b7499':
     dependencies:
       '@matter/general': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/model': 0.18.0-alpha.0-20261008-6066b7499
@@ -5799,7 +5794,7 @@ snapshots:
   '@matter/nodejs@0.18.0-alpha.0-20261008-6066b7499':
     dependencies:
       '@matter/general': 0.18.0-alpha.0-20261008-6066b7499
-      '@matter/node': 0.18.0-alpha.0-20261008-6066b7499(patch_hash=ccacd9714bff1ce3e2eb7c2bdc9bede816c7579c8664a59096c1fcd8baa0affe)
+      '@matter/node': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/protocol': 0.18.0-alpha.0-20261008-6066b7499
       '@matter/types': 0.18.0-alpha.0-20261008-6066b7499
 

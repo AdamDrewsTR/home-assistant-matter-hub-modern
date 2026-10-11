@@ -4,9 +4,6 @@ import { type Endpoint, ServerNode } from "@matter/main/node";
 import { createBridgeServerConfig } from "../../utils/json/create-bridge-server-config.js";
 
 export class BridgeServerNode extends ServerNode {
-  // Used by patched ServerSubscription for priming reports (#424).
-  hamhOmitEventsInPriming: boolean;
-
   constructor(
     env: Environment,
     bridgeData: BridgeData,
@@ -19,8 +16,6 @@ export class BridgeServerNode extends ServerNode {
       environment: env,
       parts: [...(config.parts ?? []), aggregator],
     });
-    this.hamhOmitEventsInPriming =
-      bridgeData.featureFlags?.omitEventsInPriming === true;
   }
 
   async factoryReset() {
