@@ -378,7 +378,12 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.930)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.931)</strong></summary>
+
+**v2.1.0-alpha.931:**
+- 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again
+- 🔁 **Session rotation is opt-in in server mode too**: server mode bridges no longer close controller sessions every 4 h. Set Session Rotation Max Age if you want it back. When HAMH closes a session itself, it closes its subscriptions first
+- 🔌 **EV chargers answer charging target commands**: SetTargets, GetTargets and ClearTargets are accepted and stored, nothing is sent to Home Assistant
 
 **v2.1.0-alpha.930:**
 - 🧵 **matter.js 0.18 RC (nightly 0.18.0-alpha.0-20261008)**: brings Matter 1.6.1. Controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. If something pairs or behaves differently than on alpha.929, please open an issue with the diagnostic export
