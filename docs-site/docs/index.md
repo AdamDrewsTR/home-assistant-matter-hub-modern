@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.931)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.932)</strong></summary>
+
+**v2.1.0-alpha.932:**
+- 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start
 
 **v2.1.0-alpha.931:**
 - 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again

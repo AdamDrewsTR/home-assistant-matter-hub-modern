@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.931 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.932 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.931)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.932)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.932:**
+- 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start
 
 **v2.1.0-alpha.931:**
 - 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again
