@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.932 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.933 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.932)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.933)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.933:**
+- 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as \ 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
 
 **v2.1.0-alpha.932:**
 - 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start

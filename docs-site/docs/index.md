@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.932)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.933)</strong></summary>
+
+**v2.1.0-alpha.933:**
+- 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as \ 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
 
 **v2.1.0-alpha.932:**
 - 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start
