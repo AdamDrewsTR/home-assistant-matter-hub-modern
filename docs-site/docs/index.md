@@ -378,7 +378,16 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.928)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.929)</strong></summary>
+
+**v2.1.0-alpha.929:**
+- 🧹 **Vacuums with one cleaning mode get a second "Auto" mode**: Matter needs at least two cleaning modes, and the coming matter.js 0.18 refuses a vacuum with only one. Picking "Auto" is refused and nothing is sent to Home Assistant. Apple Home shows it as "Automatic"
+- 🔌 **EV chargers list "Time of Use" next to Manual**: same rule for the EVSE mode list. Picking it is refused, Manual stays selected
+- 🪟 **Shutters with tilt become exterior venetian blinds**: Matter 1.6.1 allows the Shutter type only with lift or tilt, not both. A tilting `shutter` cover now reports TiltBlindLift with ExteriorVenetianBlind, so already paired ones may show a different blind type. Covers also set a valid product type before their first state arrives
+- 🔒 **Unlock with timeout reaches Home Assistant**: the command used to flip the lock state in the controller without calling Home Assistant. It now unlocks through Home Assistant like a normal unlock and locks again when the timeout runs out
+- 🔘 **Long press events end released**: a `long_press` without a following release sent the press twice and left the button held. It now sends press, long press and release once
+- 📺 **TVs without play or pause mount**: they failed to start because the playback cluster was left out
+- 💡 **Color lights list RemainingTime** and the **pump mapping mounts**, it never did before
 
 **v2.1.0-alpha.928:**
 - 🧹 **Apple Home can clean all rooms of a CLEAN_AREA vacuum**: Apple sends "all rooms" as an empty selection and then starts with one room's run mode, so only that room got cleaned. The "Don't expose rooms as per-room cleaning modes" option in the entity mapping now also covers CLEAN_AREA rooms and rooms from the vacuum attributes, not only custom areas. Turn it on when only Apple Home starts the vacuum; Alexa and Google Home still need the room modes ([#511](https://github.com/RiDDiX/home-assistant-matter-hub/issues/511))
