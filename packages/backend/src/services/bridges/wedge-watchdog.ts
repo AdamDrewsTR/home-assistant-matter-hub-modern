@@ -1,5 +1,5 @@
 // Wedge watchdog: rotate exactly the session that looks wedged, earlier than
-// the blind 4h rotation. An Apple controller can keep MRP-acking pushed reports
+// age-based rotation. An Apple controller can keep MRP-acking pushed reports
 // (so activeTimestamp/isPeerActive stay fresh) while it has stopped consuming
 // data and stopped sending any inbound Interaction Model request. The only
 // controller-side signal that survives that state is the absence of inbound IM

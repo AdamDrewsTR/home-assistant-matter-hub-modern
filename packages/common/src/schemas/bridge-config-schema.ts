@@ -519,9 +519,8 @@ export const bridgeConfigSchema: JSONSchema7 = {
       type: "number",
       description:
         "Rotate matter sessions older than this many hours so controllers " +
-        "re-establish and re-subscribe. Server Mode rotates every 4h by " +
-        "default; standard bridges only rotate when you set a value here. " +
-        "Set 0 to disable. Range 0 to 168. (#287)",
+        "re-establish and re-subscribe. Off unless you set a value here, " +
+        "on every bridge type. Set 0 to disable. Range 0 to 168. (#287)",
       minimum: 0,
       maximum: 168,
     },

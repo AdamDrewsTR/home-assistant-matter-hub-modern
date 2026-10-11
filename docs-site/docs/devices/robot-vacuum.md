@@ -543,9 +543,9 @@ The most targeted fix is **Bridge Settings → Wedge Watchdog** (Stable since v2
 
 #### Built-in session rotation
 
-The bridge also rotates Matter sessions by age (Stable since v2.0.44 for Server Mode, on every bridge since v2.0.47). Every 5 minutes the bridge looks for sessions older than the configured max age that still hold subscriptions, and gracefully closes them. The iPhone reacts by re-establishing CASE and re-subscribing, which clears the "Updating" tile without you doing anything.
+The bridge can also rotate Matter sessions by age. It is off unless you set a max age (Server Mode used to rotate every 4 hours by default, it no longer does). With a max age set, every 5 minutes the bridge looks for sessions older than that which still hold subscriptions, closes their subscriptions and then the session. The iPhone reacts by re-establishing CASE and re-subscribing, which clears the "Updating" tile without you doing anything.
 
-Tune the threshold per bridge under **Bridge Settings → Session Rotation Max Age (hours)**. Default is 4. Set a smaller value if your tile gets stuck faster than that, or `0` to disable rotation entirely and rely on the manual workaround below. The change applies live, no add-on or Docker restart needed. Look for `Rotating session` lines in the logs to confirm the timer fired.
+Set the threshold per bridge under **Bridge Settings → Session Rotation Max Age (hours)**, for example 4. Use a smaller value if your tile gets stuck faster than that. Leave it empty or set `0` to keep rotation off and rely on the Wedge Watchdog or the manual workaround below. The change applies live, no add-on or Docker restart needed. Look for `Rotating session` lines in the logs to confirm the timer fired.
 
 A system-wide fallback is also available for advanced setups via the `HAMH_MATTER_SESSION_MAX_AGE_HOURS` environment variable (Docker `-e` flag or `.env` file). The bridge setting always wins when both are set.
 
