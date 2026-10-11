@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.929 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.930 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,11 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.929)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.930)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.930:**
+- 🧵 **matter.js 0.18 RC (nightly 0.18.0-alpha.0-20261008)**: brings Matter 1.6.1. Controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. If something pairs or behaves differently than on alpha.929, please open an issue with the diagnostic export
+- 🔇 **matter.js device type checks stay off at runtime**: 0.18 can check every endpoint against its device type and log a warning for each deviation at every start. HAMH turns that off, the endpoint shapes are covered by its tests
 
 **v2.1.0-alpha.929:**
 - 🧹 **Vacuums with one cleaning mode get a second "Auto" mode**: Matter needs at least two cleaning modes, and the coming matter.js 0.18 refuses a vacuum with only one. Picking "Auto" is refused and nothing is sent to Home Assistant. Apple Home shows it as "Automatic"
