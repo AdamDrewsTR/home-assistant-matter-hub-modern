@@ -255,11 +255,11 @@ describe("energy evse bring-up (#419 seeding)", () => {
     );
 
     expect(snapshot.hasPowerTopology).toBe(true);
-    expect(snapshot.treeTopology).toBe(true);
+    expect(snapshot.treeTopology).toBe(false);
     expect(snapshot.nodeTopology).toBe(false);
     // NODE/TREE/SET are a choice, and DYNPW pulls in attributes nothing seeds,
-    // so the whole map is pinned instead of just the tree bit.
-    expect(snapshot.setTopology).toBe(false);
+    // so the whole map is pinned instead of just the set bit.
+    expect(snapshot.setTopology).toBe(true);
     expect(snapshot.dynamicPowerFlow).toBe(false);
   });
 });

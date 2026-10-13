@@ -21,13 +21,15 @@ import { createLegacyEndpointType } from "./legacy/create-legacy-endpoint-type.j
 
 // #431: PowerTopology NODE means "this measurement covers the whole node". A
 // bridge is one node for every accessory, so Apple Home painted one metered
-// plug's watts onto every bridged device. TREE scopes it to the endpoint.
+// plug's watts onto every bridged device. #513: TREE on a leaf names no
+// endpoint, so SmartThings dropped the meter. SET lists the endpoint itself.
 
 interface FeatureMap {
   nodeTopology: boolean;
   treeTopology: boolean;
   setTopology: boolean;
   dynamicPowerFlow: boolean;
+  availableEndpoints: number[];
 }
 
 const POWER = "sensor.plug_power";
@@ -126,7 +128,13 @@ async function featureMapOf(endpoint: Endpoint): Promise<FeatureMap> {
   await endpoint.act((agent) => {
     // biome-ignore lint/suspicious/noExplicitAny: read cluster state
     const a = agent as any;
-    featureMap = a.powerTopology?.state.featureMap;
+    const topology = a.powerTopology?.state;
+    if (topology) {
+      featureMap = {
+        ...topology.featureMap,
+        availableEndpoints: [...topology.availableEndpoints].map(Number),
+      };
+    }
   });
   if (!featureMap) {
     throw new Error("powerTopology is not mounted on this endpoint");
@@ -176,15 +184,16 @@ describe("power topology scope on a bridge (#431)", () => {
     await aggregator.add(endpoint);
 
     const featureMap = await featureMapOf(endpoint);
-    expect(featureMap.treeTopology).toBe(true);
+    expect(featureMap.treeTopology).toBe(false);
     expect(featureMap.nodeTopology).toBe(false);
     // NODE/TREE/SET are a choice, and DYNPW would pull in attributes nothing
-    // seeds, so the whole map has to be pinned, not just the tree bit.
-    expect(featureMap.setTopology).toBe(false);
+    // seeds, so the whole map has to be pinned, not just the set bit.
+    expect(featureMap.setTopology).toBe(true);
     expect(featureMap.dynamicPowerFlow).toBe(false);
+    expect(featureMap.availableEndpoints).toEqual([endpoint.number]);
   });
 
-  it("scopes a composed sensor parent to its own subtree", async () => {
+  it("scopes a composed sensor parent to its own endpoint", async () => {
     const endpoint = await ComposedSensorEndpoint.create({
       registry: composedRegistry(),
       primaryEntityId: TEMPERATURE,
@@ -198,9 +207,10 @@ describe("power topology scope on a bridge (#431)", () => {
     await aggregator.add(endpoint);
 
     const featureMap = await featureMapOf(endpoint);
-    expect(featureMap.treeTopology).toBe(true);
+    expect(featureMap.treeTopology).toBe(false);
     expect(featureMap.nodeTopology).toBe(false);
-    expect(featureMap.setTopology).toBe(false);
+    expect(featureMap.setTopology).toBe(true);
     expect(featureMap.dynamicPowerFlow).toBe(false);
+    expect(featureMap.availableEndpoints).toEqual([endpoint.number]);
   });
 });
