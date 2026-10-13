@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.933)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.934)</strong></summary>
+
+**v2.1.0-alpha.934:**
+- 🔌 **SmartThings shows power and energy on metered plugs**: a switch, plug or light with a mapped power or energy entity now links its meter to the device the way SmartThings expects, so it shows watts and kWh instead of a plain on/off switch. After updating, remove the device in SmartThings and add it again, SmartThings only picks this when a device is added ([#513](https://github.com/RiDDiX/home-assistant-matter-hub/issues/513))
 
 **v2.1.0-alpha.933:**
 - 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as `set_cover_position` 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
