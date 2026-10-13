@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.933 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.934 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.933)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.934)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.934:**
+- 🔌 **SmartThings shows power and energy on metered plugs**: a switch, plug or light with a mapped power or energy entity now links its meter to the device the way SmartThings expects, so it shows watts and kWh instead of a plain on/off switch. After updating, remove the device in SmartThings and add it again, SmartThings only picks this when a device is added ([#513](https://github.com/RiDDiX/home-assistant-matter-hub/issues/513))
 
 **v2.1.0-alpha.933:**
 - 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as `set_cover_position` 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
