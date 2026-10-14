@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.934 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.935 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,13 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.934)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.935)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.935:**
+- 🔌 **Plugs and switches advertise the Matter Lighting feature again**: Matter requires it on every plug type and on a cover shown as a light. Switches, input booleans, scripts, scenes, automations, buttons, remotes, sirens, on/off fans, select switches, vacuum room switches and alarm panels shown as a plug carry it now. Its timed and scene commands act like a plain on or off, so a controller can never turn something off later on its own. Paired controllers may need a re-discover to pick it up
+- 🔋 **Smoke/CO alarms and solar power report a power source**: alarms without a battery and solar power endpoints carry the mains power source Matter requires. Solar also lists voltage, current and exported energy, unknown unless mapped. A mapped battery still wins
+- ⚡ **EV chargers carry Device Energy Management**: report only, no forecast and no power adjustment, offline while the status entity is unavailable
+- 🔢 **Same type parts are numbered**: composed devices and server mode nodes give same type siblings a numbered tag, as Matter requires
 
 **v2.1.0-alpha.934:**
 - 🔌 **SmartThings shows power and energy on metered plugs**: a switch, plug or light with a mapped power or energy entity now links its meter to the device the way SmartThings expects, so it shows watts and kWh instead of a plain on/off switch. After updating, remove the device in SmartThings and add it again, SmartThings only picks this when a device is added ([#513](https://github.com/RiDDiX/home-assistant-matter-hub/issues/513))
