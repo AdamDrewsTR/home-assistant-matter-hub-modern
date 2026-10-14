@@ -8,7 +8,7 @@ import type { HomeAssistantStates } from "../../../../services/home-assistant/ho
 import { BasicInformationServer } from "../../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
-import { OnOffServer } from "../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../behaviors/on-off-server.js";
 import { EntityEndpoint } from "../../entity-endpoint.js";
 import { updateEntityState } from "../../update-entity-state.js";
 import { dispatchRoomClean } from "./behaviors/vacuum-rvc-run-mode-server.js";
@@ -58,7 +58,7 @@ export class VacuumAreaSwitchEndpoint extends EntityEndpoint {
       BasicInformationServer,
       IdentifyServer,
       HomeAssistantEntityBehavior,
-      OnOffServer({
+      PlugOnOffServer({
         isOn: () => false,
         // off is a no-op (momentary auto-reset only, script pattern).
         turnOff: null,

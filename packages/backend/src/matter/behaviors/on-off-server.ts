@@ -5,6 +5,7 @@ import type {
 import { Logger } from "@matter/general";
 import type { Agent } from "@matter/main";
 import { OnOffServer as Base } from "@matter/main/behaviors";
+import type { OnOff } from "@matter/main/clusters";
 import type { HomeAssistantAction } from "../../services/home-assistant/home-assistant-actions.js";
 import { applyPatchState } from "../../utils/apply-patch-state.js";
 import { HomeAssistantEntityBehavior } from "./home-assistant-entity-behavior.js";
@@ -128,7 +129,7 @@ class OnOffServerBase extends Base {
     // an optimistic onOff true plus a ~1s auto-reset to false, producing an
     // unsolicited on->off report pair per activation. Some Echo devices wedge
     // on that pair until restarted (#423). disableMomentaryFlip skips both:
-    // the HA action still fires, but the state stays off and nothing reports.
+    // the HA action still fires, but onOff stays off and never reports.
     const skipMomentaryFlip =
       turnOff === null && homeAssistant.state.mapping?.disableMomentaryFlip;
     if (!skipMomentaryFlip) {
@@ -209,6 +210,39 @@ namespace OnOffServerBase {
 
 export function OnOffServer(config: OnOffConfig = {}) {
   return OnOffServerBase.set({ config });
+}
+
+// Plug type endpoints need the Lighting feature, but its extra commands stay a
+// plain on or off here: no timed off and no global scene recall, so a
+// controller can never trigger a later off (disarm, close) on its own.
+class PlugOnOffServerBase extends OnOffServerBase.with("Lighting") {
+  override on() {
+    // Set by every OnOff command that turns it on, as the spec asks.
+    this.state.globalSceneControl = true;
+    return super.on();
+  }
+
+  override onWithTimedOff({ onOffControl }: OnOff.OnWithTimedOffRequest) {
+    // Turns on only from off. While on it would only restart the timer, which
+    // plugs do not run, so HA gets nothing.
+    if (onOffControl.acceptOnlyWhenOn || this.state.onOff) {
+      return;
+    }
+    return this.on();
+  }
+
+  // matter.js would apply the stored global scene and then call on() as well,
+  // so HA would get the on twice.
+  override onWithRecallGlobalScene() {
+    if (this.state.globalSceneControl) {
+      return;
+    }
+    return this.on();
+  }
+}
+
+export function PlugOnOffServer(config: OnOffConfig = {}) {
+  return PlugOnOffServerBase.set({ config });
 }
 
 export function setOptimisticOnOff(entityId: string, expectedOnOff: boolean) {

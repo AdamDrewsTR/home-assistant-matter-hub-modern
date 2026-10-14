@@ -377,6 +377,7 @@ describe("vacuum room switches (#355)", () => {
       "vacuum_robot_roomsw_17",
     ]);
     const names = new Map<string, string>();
+    const lighting: boolean[] = [];
     for (const sw of switches) {
       await sw.construction.ready;
       await sw.act((agent) => {
@@ -385,10 +386,14 @@ describe("vacuum room switches (#355)", () => {
           // biome-ignore lint/suspicious/noExplicitAny: read basic info state
           (agent as any).bridgedDeviceBasicInformation.state.nodeLabel,
         );
+        // biome-ignore lint/suspicious/noExplicitAny: read runtime state
+        lighting.push((agent as any).onOff.state.featureMap.lighting);
       });
     }
     expect(names.get("vacuum_robot_roomsw_16")).toBe("Kitchen");
     expect(names.get("vacuum_robot_roomsw_17")).toBe("Bedroom");
+    // OnOffPlugInUnit requires the OnOff Lighting feature.
+    expect(lighting).toEqual([true, true]);
   });
 
   it("turning a switch on dispatches the area's clean action and auto-resets", async () => {

@@ -12,7 +12,7 @@ import { BasicInformationServer } from "../../../../behaviors/basic-information-
 import { HomeAssistantEntityBehavior } from "../../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../../behaviors/identify-server.js";
 import { LevelControlServer } from "../../../../behaviors/level-control-server.js";
-import { OnOffServer } from "../../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../../behaviors/on-off-server.js";
 import { DefaultPowerSourceServer } from "../../../../behaviors/power-source-server.js";
 import { liftShouldUseTilt } from "./cover-window-covering-server.js";
 
@@ -90,7 +90,9 @@ export function tiltOpenClose(
   return { action: open ? "cover.open_cover_tilt" : "cover.close_cover_tilt" };
 }
 
-const CoverAsLightOnOffServer = OnOffServer({
+// Plug variant: DimmableLight needs Lighting, but a timed off must never close
+// the cover.
+const CoverAsLightOnOffServer = PlugOnOffServer({
   isOn: (entity) => entity.state !== CoverDeviceState.closed,
   turnOn: (_value, agent) => {
     const sf = supportedFeaturesOf(agent);

@@ -6,7 +6,7 @@ import { BasicInformationServer } from "../../../behaviors/basic-information-ser
 import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
 import { ModeSelectServer } from "../../../behaviors/mode-select-server.js";
-import { OnOffServer } from "../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../behaviors/on-off-server.js";
 
 // Matter has no dedicated alarm/security panel device type.
 // ModeSelect (0x27) is the best fit: each alarm arm mode becomes a selectable
@@ -120,7 +120,7 @@ const AlarmPanelEndpointType = ModeSelectDevice.with(
 // OnOffPlugInUnit fallback for controllers that don't support ModeSelect
 // (Apple Home, Google Home, SmartThings, Tuya).
 // On = arm (uses first available arm mode), Off = disarm.
-const AlarmOnOffServer = OnOffServer({
+const AlarmOnOffServer = PlugOnOffServer({
   isOn: (entityState, agent) => {
     return (
       agent.get(HomeAssistantEntityBehavior).isAvailable &&

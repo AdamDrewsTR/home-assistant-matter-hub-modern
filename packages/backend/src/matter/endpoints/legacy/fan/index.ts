@@ -18,7 +18,10 @@ import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-e
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
 import { DefaultPowerSourceServer } from "../../../behaviors/power-source-server.js";
 import { FanFanControlServer } from "./behaviors/fan-fan-control-server.js";
-import { FanOnOffServer } from "./behaviors/fan-on-off-server.js";
+import {
+  FanOnOffServer,
+  FanPlugOnOffServer,
+} from "./behaviors/fan-on-off-server.js";
 
 export function FanDevice(
   homeAssistantEntity: HomeAssistantEntityBehavior.State,
@@ -54,7 +57,7 @@ export function FanDevice(
           HomeAssistantEntityBehavior,
           GroupsServer,
           ScenesManagementServer,
-          FanOnOffServer,
+          FanPlugOnOffServer,
           DefaultPowerSourceServer,
         )
       : OnOffPlugInUnitDevice.with(
@@ -63,7 +66,7 @@ export function FanDevice(
           HomeAssistantEntityBehavior,
           GroupsServer,
           ScenesManagementServer,
-          FanOnOffServer,
+          FanPlugOnOffServer,
         );
     return onOffDevice.set({ homeAssistantEntity });
   }
