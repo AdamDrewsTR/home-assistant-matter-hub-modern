@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.935 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.936 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.935)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.936)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.936:**
+- 🧵 **matter.js 0.18 nightly from 2026-10-14**: newer build of the coming 0.18 release. It now counts the power source, electrical sensor and energy management types an endpoint lists itself, so the fixes from alpha.935 leave no device type warnings behind
 
 **v2.1.0-alpha.935:**
 - 🔌 **Plugs and switches advertise the Matter Lighting feature again**: Matter requires it on every plug type and on a cover shown as a light. Switches, input booleans, scripts, scenes, automations, buttons, remotes, sirens, on/off fans, select switches, vacuum room switches and alarm panels shown as a plug carry it now. Its timed and scene commands act like a plain on or off, so a controller can never turn something off later on its own. Paired controllers may need a re-discover to pick it up
