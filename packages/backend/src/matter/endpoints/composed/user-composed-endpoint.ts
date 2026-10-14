@@ -18,6 +18,7 @@ import {
   DefaultPowerSourceServer,
   withoutWiredPowerSource,
 } from "../../behaviors/power-source-server.js";
+import { duplicateNumberTags, setNumberTag } from "../duplicate-tags.js";
 import { createLegacyEndpointType } from "../legacy/create-legacy-endpoint-type.js";
 import { updateEntityState } from "../update-entity-state.js";
 
@@ -290,6 +291,11 @@ export class UserComposedEndpoint extends Endpoint {
           `be built, need at least one. Falling back to standalone.`,
       );
       return undefined;
+    }
+
+    // same type parts (a 3 gang switch) need a TagList, numbered in config order
+    for (const [part, tag] of duplicateNumberTags(parts)) {
+      setNumberTag(part, tag);
     }
 
     // Create parent endpoint with sub-endpoints as parts
