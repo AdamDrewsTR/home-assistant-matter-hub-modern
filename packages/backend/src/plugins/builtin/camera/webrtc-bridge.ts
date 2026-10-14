@@ -88,6 +88,7 @@ export class WebRtcBridge {
   // private fields: the devices API dumps every enumerable key of the camera state (#155)
   #connection?: Connection;
   readonly #sessions = new Map<number, BridgeSession>();
+  readonly #mutedMicrophones = new Set<string>();
   readonly #config: WebRtcBridgeConfig;
   readonly #deps: WebRtcBridgeDeps;
 
@@ -126,8 +127,8 @@ export class WebRtcBridge {
     // Pre-add the sendonly transceivers so our own offer advertises media; a
     // late addTransceiver (inside onTrack) never renegotiates and never sends.
     const senders = new Map<string, RTCRtpTransceiver>();
-    // Video only: the AvStream cluster advertises no audio feature, and the
-    // deferred-offer path has no controller m-lines to constrain against.
+    // Video only: the deferred-offer path has no controller m-lines to
+    // constrain against.
     senders.set(
       "video",
       controllerPeer.addTransceiver("video", { direction: "sendonly" }),
@@ -335,6 +336,13 @@ export class WebRtcBridge {
     });
   }
 
+  // MicrophoneMuted: the relay cannot re-encode, so it stops the audio and the
+  // player hears silence.
+  setMicrophoneMuted(entityId: string, muted: boolean): void {
+    if (muted) this.#mutedMicrophones.add(entityId);
+    else this.#mutedMicrophones.delete(entityId);
+  }
+
   // Grab a still JPEG via HA's camera proxy (for CaptureSnapshot).
   async snapshot(entityId: string): Promise<Uint8Array> {
     const url = `${this.#config.haUrl}/api/camera_proxy/${entityId}`;
@@ -380,7 +388,9 @@ export class WebRtcBridge {
         return;
       }
       let firstLogged = false;
+      const muted = track.kind === "audio" ? this.#mutedMicrophones : undefined;
       track.onReceiveRtp.subscribe((rtp) => {
+        if (muted?.has(entityId)) return;
         if (!firstLogged) {
           firstLogged = true;
           logger.info(`first RTP forwarded for ${track.kind} (${entityId})`);

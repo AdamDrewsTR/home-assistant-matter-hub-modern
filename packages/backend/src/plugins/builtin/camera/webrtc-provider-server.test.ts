@@ -2,8 +2,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Environment, VariableService } from "@matter/general";
-import { Endpoint, EndpointNumber, VendorId } from "@matter/main";
+import {
+  Endpoint,
+  EndpointNumber,
+  FabricIndex,
+  LocalActorContext,
+  NodeId,
+  VendorId,
+} from "@matter/main";
 import { ServerNode } from "@matter/main/node";
+import { StatusCode } from "@matter/main/types";
 import type { SecureSession } from "@matter/protocol";
 import { StreamUsage } from "@matter/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,18 +35,22 @@ const ANSWER = "v=0 the-answer";
 interface FakeBridge {
   bridge: WebRtcBridge;
   endedSessions: number[];
+  mutes: [string, boolean][];
 }
 
 function fakeBridge(): FakeBridge {
   const endedSessions: number[] = [];
+  const mutes: [string, boolean][] = [];
   const bridge = {
     acceptControllerOffer: async () => ANSWER,
     endSession: async (id: number) => {
       endedSessions.push(id);
     },
     snapshot: async () => new Uint8Array(0),
+    setMicrophoneMuted: (entityId: string, muted: boolean) =>
+      mutes.push([entityId, muted]),
   } as unknown as WebRtcBridge;
-  return { bridge, endedSessions };
+  return { bridge, endedSessions, mutes };
 }
 
 const fakeEnv = {} as unknown as Environment;
@@ -93,21 +105,136 @@ async function mountCamera(
 function provideOffer(
   endpoint: Endpoint,
   sessionId: number | null,
-  streams: { videoStreamId?: number | null; videoStreams?: number[] } = {
+  streams: {
+    videoStreamId?: number | null;
+    videoStreams?: number[];
+    audioStreamId?: number | null;
+    audioStreams?: number[];
+    sdp?: string;
+  } = {
     videoStreamId: null,
   },
-): Promise<{ webRtcSessionId: number; videoStreamId?: number }> {
-  return endpoint.act((agent) =>
-    // biome-ignore lint/suspicious/noExplicitAny: invoke provideOffer directly
-    (agent as any).webRtcTransportProvider.provideOffer({
+  fromPeer = false,
+): Promise<{
+  webRtcSessionId: number;
+  videoStreamId?: number;
+  audioStreamId?: number | null;
+}> {
+  // biome-ignore lint/suspicious/noExplicitAny: invoke provideOffer directly
+  const invoke = (agent: any) =>
+    agent.webRtcTransportProvider.provideOffer({
       webRtcSessionId: sessionId,
       sdp: "v=0 controller-offer",
       streamUsage: StreamUsage.LiveView,
       originatingEndpointId: EndpointNumber(1),
       audioStreamId: null,
       ...streams,
-    }),
-  ) as Promise<{ webRtcSessionId: number; videoStreamId?: number }>;
+    });
+  // A controller's invoke carries its session, trackSession only lists a
+  // session with a fabric. Offline act has none.
+  const session = {
+    isClosed: false,
+    peerNodeId: NodeId(1),
+    associatedFabric: { fabricIndex: FabricIndex(1) },
+  };
+  return (
+    fromPeer
+      ? LocalActorContext.act(
+          "provideOffer from a peer",
+          (context) => invoke(endpoint.agentFor(context)),
+          { session } as never,
+        )
+      : endpoint.act(invoke)
+  ) as Promise<{
+    webRtcSessionId: number;
+    videoStreamId?: number;
+    audioStreamId?: number | null;
+  }>;
+}
+
+function currentSessions(
+  endpoint: Endpoint,
+): { id: number; audioStreams?: number[]; audioStreamId?: number }[] {
+  // biome-ignore lint/suspicious/noExplicitAny: read behavior state
+  return (endpoint.state as any).webRtcTransportProvider.currentSessions;
+}
+
+function allocatedAudioStreams(
+  endpoint: Endpoint,
+): { audioStreamId: number; referenceCount: number }[] {
+  // biome-ignore lint/suspicious/noExplicitAny: read behavior state
+  return (endpoint.state as any).cameraAvStreamManagement.allocatedAudioStreams;
+}
+
+const opusRequest = {
+  streamUsage: StreamUsage.LiveView,
+  audioCodec: 0, // Opus
+  channelCount: 1,
+  sampleRate: 48_000,
+  bitRate: 32_000,
+  bitDepth: 16,
+};
+
+function audioCall(endpoint: Endpoint, command: string, request: unknown) {
+  return endpoint.act((agent) =>
+    // biome-ignore lint/suspicious/noExplicitAny: invoke the command directly
+    (agent as any).cameraAvStreamManagement[command](request),
+  ) as Promise<{ audioStreamId: number } | undefined>;
+}
+
+// What a CaptureSnapshot invoke does to the AV state while it waits for HA:
+// matter.js locks the cluster for the whole command.
+async function holdAvState(endpoint: Endpoint): Promise<() => Promise<void>> {
+  let release = () => {};
+  const held = endpoint.act(async (agent) => {
+    // biome-ignore lint/suspicious/noExplicitAny: any write takes the lock
+    (agent as any).cameraAvStreamManagement.state.currentFrameRate = 5;
+    await new Promise<void>((r) => {
+      release = r;
+    });
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  return async () => {
+    release();
+    await held;
+  };
+}
+
+const smartThingsOffer = {
+  videoStreamId: 1,
+  audioStreamId: undefined,
+  sdp: "v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n",
+};
+
+// A session as trackSession writes it, carrying one audio stream
+function useAudio(endpoint: Endpoint, audioStreamId: number) {
+  return endpoint.act((agent) => {
+    // biome-ignore lint/suspicious/noExplicitAny: write behavior state
+    (agent as any).webRtcTransportProvider.state.currentSessions = [
+      {
+        id: 7,
+        peerNodeId: 1,
+        peerEndpointId: 1,
+        streamUsage: StreamUsage.LiveView,
+        videoStreams: [1],
+        videoStreamId: 1,
+        audioStreams: [audioStreamId],
+        audioStreamId,
+        metadataEnabled: false,
+        fabricIndex: 1,
+      },
+    ];
+  });
+}
+
+// the status code a command fails with (act throws synchronously)
+async function statusOf(call: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await call();
+    return "success";
+  } catch (e) {
+    return (e as { code?: unknown }).code;
+  }
 }
 
 function allocatedVideoStreams(
@@ -347,5 +474,355 @@ describe("videoStreamAllocate", () => {
     expect(allocatedVideoStreams(endpoint)).toEqual([
       expect.objectContaining({ videoStreamId: res.videoStreamId }),
     ]);
+  });
+});
+
+// Camera requires the Audio feature; the bridge relays HA's audio track.
+describe("audio streams", () => {
+  it("allocates an Opus stream within MicrophoneCapabilities", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    const res = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+
+    expect(allocatedAudioStreams(endpoint)).toEqual([
+      { audioStreamId: res?.audioStreamId, ...opusRequest, referenceCount: 0 },
+    ]);
+  });
+
+  it("reuses the stream when the same request comes again", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    const a = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const b = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+
+    expect(b?.audioStreamId).toBe(a?.audioStreamId);
+    expect(allocatedAudioStreams(endpoint)).toHaveLength(1);
+  });
+
+  it("refuses a sample rate outside MicrophoneCapabilities", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    expect(
+      await statusOf(() =>
+        audioCall(endpoint, "audioStreamAllocate", {
+          ...opusRequest,
+          sampleRate: 32_000, // not an Opus rate
+        }),
+      ),
+    ).toBe(StatusCode.DynamicConstraintError);
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
+
+  it("allocates every Opus sample rate", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    for (const sampleRate of [8_000, 12_000, 16_000, 24_000, 48_000]) {
+      expect(
+        await statusOf(() =>
+          audioCall(endpoint, "audioStreamAllocate", {
+            ...opusRequest,
+            sampleRate,
+          }),
+        ),
+      ).toBe("success");
+    }
+    expect(allocatedAudioStreams(endpoint)).toHaveLength(5);
+  });
+
+  // TC-AVSM-2.5 steps 8, 12 and 15
+  it.each([
+    ["StreamUsage Internal", { streamUsage: StreamUsage.Internal }],
+    ["a StreamUsage outside the enum", { streamUsage: 9 }],
+    ["BitDepth 48", { bitDepth: 48 }],
+    ["AudioCodec 10", { audioCodec: 10 }],
+  ])("refuses %s with CONSTRAINT_ERROR", async (_, field) => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    expect(
+      await statusOf(() =>
+        audioCall(endpoint, "audioStreamAllocate", {
+          ...opusRequest,
+          ...field,
+        }),
+      ),
+    ).toBe(StatusCode.ConstraintError);
+  });
+
+  it("refuses a usage missing from StreamUsagePriorities", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    expect(
+      await statusOf(() =>
+        audioCall(endpoint, "audioStreamAllocate", {
+          ...opusRequest,
+          streamUsage: StreamUsage.Recording,
+        }),
+      ),
+    ).toBe(StatusCode.InvalidInState);
+  });
+
+  it("deallocates a stream and answers NOT_FOUND for an unknown one", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const res = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const audioStreamId = res?.audioStreamId ?? -1;
+
+    expect(
+      await statusOf(() =>
+        audioCall(endpoint, "audioStreamDeallocate", {
+          audioStreamId: audioStreamId + 1,
+        }),
+      ),
+    ).toBe(StatusCode.NotFound);
+    await audioCall(endpoint, "audioStreamDeallocate", { audioStreamId });
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
+
+  it("echoes the AudioStreamID the controller allocated", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+
+    const res = await provideOffer(endpoint, null, {
+      videoStreamId: null,
+      audioStreamId: alloc?.audioStreamId,
+    });
+    touched.add(res.webRtcSessionId);
+
+    expect(res.audioStreamId).toBe(alloc?.audioStreamId);
+  });
+
+  it("refuses an AudioStreamID that was never allocated", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    expect(
+      await statusOf(() =>
+        provideOffer(endpoint, null, { videoStreamId: null, audioStreamId: 9 }),
+      ),
+    ).toBe(StatusCode.DynamicConstraintError);
+  });
+
+  it("refuses an audio stream listed twice", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const id = alloc?.audioStreamId ?? -1;
+
+    expect(
+      await statusOf(() =>
+        provideOffer(endpoint, null, {
+          videoStreams: [1],
+          audioStreamId: undefined,
+          audioStreams: [id, id],
+        }),
+      ),
+    ).toBe(StatusCode.AlreadyExists);
+  });
+
+  it("assigns the LiveView audio stream when the AudioStreamID is null", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+
+    const res = await provideOffer(endpoint, null, {
+      videoStreamId: null,
+      audioStreamId: null,
+    });
+    touched.add(res.webRtcSessionId);
+
+    expect(res.audioStreamId).toBe(alloc?.audioStreamId);
+    expect(allocatedAudioStreams(endpoint)).toHaveLength(1);
+  });
+
+  it("allocates nothing for a null AudioStreamID", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    const res = await provideOffer(endpoint, null, {
+      videoStreamId: 1,
+      audioStreamId: null,
+    });
+    touched.add(res.webRtcSessionId);
+
+    expect(res.audioStreamId).toBeNull();
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
+
+  it("answers a null AudioStreamID while a snapshot holds the AV state", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const release = await holdAvState(endpoint);
+
+    const res = await statusOf(async () => {
+      const r = await provideOffer(endpoint, null, {
+        videoStreamId: 1,
+        audioStreamId: null,
+      });
+      touched.add(r.webRtcSessionId);
+    });
+    await release();
+
+    expect(res).toBe("success");
+  });
+
+  it("allocates nothing for SmartThings' offer, audio but no audio id", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    const res = await provideOffer(endpoint, null, smartThingsOffer);
+    touched.add(res.webRtcSessionId);
+
+    expect(res).not.toHaveProperty("audioStreamId");
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
+
+  it("answers SmartThings' offer while a snapshot holds the AV state", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const release = await holdAvState(endpoint);
+
+    const res = await statusOf(async () => {
+      const r = await provideOffer(endpoint, null, smartThingsOffer);
+      touched.add(r.webRtcSessionId);
+    });
+    await release();
+
+    expect(res).toBe("success");
+  });
+
+  it("counts audio use once a snapshot lets go of the AV state", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const audioStreamId = alloc?.audioStreamId ?? -1;
+    const release = await holdAvState(endpoint);
+
+    await useAudio(endpoint, audioStreamId);
+    await release();
+
+    await vi.waitFor(() =>
+      expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(1),
+    );
+  });
+
+  it("refuses to deallocate a stream a session uses", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const audioStreamId = alloc?.audioStreamId ?? -1;
+    await useAudio(endpoint, audioStreamId);
+    await vi.waitFor(() =>
+      expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(1),
+    );
+
+    expect(
+      await statusOf(() =>
+        audioCall(endpoint, "audioStreamDeallocate", { audioStreamId }),
+      ),
+    ).toBe(StatusCode.InvalidInState);
+    expect(allocatedAudioStreams(endpoint)).toHaveLength(1);
+  });
+
+  it("lists the audio stream in the session it counts", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const audioStreamId = alloc?.audioStreamId ?? -1;
+
+    const res = await provideOffer(
+      endpoint,
+      null,
+      { videoStreamId: 1, audioStreamId },
+      true,
+    );
+    touched.add(res.webRtcSessionId);
+
+    expect(currentSessions(endpoint)).toEqual([
+      expect.objectContaining({
+        id: res.webRtcSessionId,
+        audioStreams: [audioStreamId],
+        audioStreamId,
+      }),
+    ]);
+    await vi.waitFor(() =>
+      expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(1),
+    );
+  });
+
+  it("passes a MicrophoneMuted write to the bridge", async () => {
+    const { bridge, mutes } = fakeBridge();
+    const endpoint = await mountCamera(bridge);
+
+    await endpoint.act((agent) => {
+      // biome-ignore lint/suspicious/noExplicitAny: write behavior state
+      (agent as any).cameraAvStreamManagement.state.microphoneMuted = true;
+    });
+
+    await vi.waitFor(() => expect(mutes).toEqual([["camera.camera", true]]));
+  });
+
+  it("caps ReferenceCount at the uint8 maximum", async () => {
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+
+    await endpoint.act((agent) =>
+      // biome-ignore lint/suspicious/noExplicitAny: recount directly
+      (agent as any).cameraAvStreamManagement.countAudioUse(
+        Array(300).fill(alloc?.audioStreamId),
+      ),
+    );
+
+    expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(255);
+  });
+
+  it("names the audio stream of a re-offer", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+    touched.add(46);
+    registerRequestor(46, {
+      session: openSession(),
+      requestorEndpoint: EndpointNumber(1),
+      env: fakeEnv,
+    });
+
+    const res = await provideOffer(endpoint, 46, {
+      videoStreamId: 1,
+      audioStreamId: 3,
+    });
+
+    expect(res.audioStreamId).toBe(3);
+  });
+
+  it("solicitOffer leaves audio out, its offer is video only", async () => {
+    const bridge = {
+      ...fakeBridge().bridge,
+      startSession: async () => ({ sdp: "", iceCandidates: [] }),
+    } as unknown as WebRtcBridge;
+    const endpoint = await mountCamera(bridge);
+
+    const res = (await endpoint.act((agent) =>
+      // biome-ignore lint/suspicious/noExplicitAny: invoke solicitOffer directly
+      (agent as any).webRtcTransportProvider.solicitOffer({
+        streamUsage: StreamUsage.LiveView,
+        originatingEndpointId: EndpointNumber(1),
+        videoStreamId: null,
+        audioStreamId: null,
+      }),
+    )) as { audioStreamId: number | null };
+
+    expect(res.audioStreamId).toBeNull();
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
+
+  it("leaves audio out of an offer without audio", async () => {
+    setRequestorInvokeForTests(async () => true);
+    const endpoint = await mountCamera(fakeBridge().bridge);
+
+    const res = await provideOffer(endpoint, null, {
+      videoStreamId: 1,
+      audioStreamId: undefined,
+      sdp: "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n",
+    });
+    touched.add(res.webRtcSessionId);
+
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
   });
 });

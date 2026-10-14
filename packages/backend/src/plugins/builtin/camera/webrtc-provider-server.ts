@@ -1,4 +1,4 @@
-import { Logger, type MaybePromise } from "@matter/general";
+import { Logger, type MaybePromise, Transaction } from "@matter/general";
 import { EndpointNumber, type FabricIndex, NodeId } from "@matter/main";
 import { WebRtcTransportProviderServer } from "@matter/main/behaviors";
 import {
@@ -39,16 +39,29 @@ function mintSessionId(): number {
 export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
   declare state: CameraWebRtcProviderServer.State;
 
+  override async initialize() {
+    await super.initialize();
+    // wait for the AV state lock, a snapshot invoke holds it while HA answers
+    const av = this.agent.get(CameraAvStreamServer);
+    this.reactTo(this.events.currentSessions$Changed, this.countAudioUse, {
+      offline: true,
+      lock: [av[Transaction.Resource.reference] as Transaction.Resource],
+    });
+  }
+
   override solicitOffer(
     request: WebRtcTransportProvider.SolicitOfferRequest,
   ): MaybePromise<WebRtcTransportProvider.SolicitOfferResponse> {
     const id = mintSessionId();
     const videoStreams = this.videoStreamsFor(request, request.streamUsage);
+    // startSession offers video only
+    const audioStreams: number[] = [];
     this.trackSession(
       id,
       request.streamUsage,
       request.originatingEndpointId,
       videoStreams,
+      audioStreams,
     );
     logger.info(
       `solicitOffer session=${id} (${this.state.entityId}), deferred offer`,
@@ -68,7 +81,7 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     return {
       webRtcSessionId: id,
       deferredOffer: true,
-      ...echoStreamIds(request, videoStreams),
+      ...echoStreamIds(request, videoStreams, audioStreams),
     };
   }
 
@@ -87,12 +100,20 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
           request.streamUsage ?? StreamUsage.LiveView,
         )
       : this.reofferStreams(id, request);
+    const audioStreams = isNew
+      ? this.audioStreamsFor(
+          request,
+          request.streamUsage ?? StreamUsage.LiveView,
+          request.sdp,
+        )
+      : this.reofferAudioStreams(id, request);
     if (isNew) {
       this.trackSession(
         id,
         request.streamUsage ?? StreamUsage.LiveView,
         request.originatingEndpointId ?? EndpointNumber(0),
         videoStreams,
+        audioStreams,
       );
     }
     // Register the live session so we can invoke the answer back on the
@@ -134,7 +155,7 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     );
     return {
       webRtcSessionId: id,
-      ...echoStreamIds(request, videoStreams),
+      ...echoStreamIds(request, videoStreams, audioStreams),
     };
   }
 
@@ -202,11 +223,59 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     );
   }
 
+  // The audio streams a request names, checked against the allocated ones. Null
+  // asks for a stream to be assigned or created. A new offer naming none still
+  // gets HA's audio when its SDP has an audio m-line: SmartThings live view
+  // (#373) sends no audio id and plays the sound, the spec only says should
+  // not. Both list the usage's stream if one exists but never allocate: a
+  // snapshot invoke can hold the AV state and the write would fail the offer.
+  private audioStreamsFor(
+    request: { audioStreamId?: number | null; audioStreams?: number[] },
+    streamUsage: StreamUsage,
+    sdp: string,
+  ): number[] {
+    const av = this.agent.get(CameraAvStreamServer);
+    const named = request.audioStreams?.length
+      ? request.audioStreams
+      : request.audioStreamId != null
+        ? [request.audioStreamId]
+        : undefined;
+    if (named) {
+      av.checkAudioStreams(named);
+      return named;
+    }
+    const existing =
+      request.audioStreamId === null || /^m=audio/m.test(sdp)
+        ? av.audioStreamOf(streamUsage)
+        : undefined;
+    return existing === undefined ? [] : [existing];
+  }
+
+  private reofferAudioStreams(
+    id: number,
+    request: { audioStreamId?: number | null; audioStreams?: number[] },
+  ): number[] {
+    if (request.audioStreams?.length) return request.audioStreams;
+    if (request.audioStreamId != null) return [request.audioStreamId];
+    return (
+      this.state.currentSessions.find((s) => s.id === id)?.audioStreams ?? []
+    );
+  }
+
+  private countAudioUse() {
+    this.agent
+      .get(CameraAvStreamServer)
+      .countAudioUse(
+        this.state.currentSessions.flatMap((s) => s.audioStreams ?? []),
+      );
+  }
+
   private trackSession(
     id: number,
     streamUsage: StreamUsage,
     peerEndpointId: EndpointNumber,
     videoStreams: number[],
+    audioStreams: number[],
   ): void {
     // Commands run online, so a session exists; read it structurally because
     // the public context type also covers the offline case.
@@ -234,6 +303,9 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
         // ConstraintError and the controller never gets an answer
         videoStreams,
         videoStreamId: videoStreams[0],
+        ...(audioStreams.length
+          ? { audioStreams, audioStreamId: audioStreams[0] }
+          : {}),
         metadataEnabled: false,
         fabricIndex,
       },
@@ -242,19 +314,22 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
 }
 
 // A request with the older VideoStreamID/AudioStreamID fields gets them back
-// in the response. There is no audio stream, the camera has no Audio feature.
+// in the response.
 function echoStreamIds(
   request: {
     videoStreamId?: number | null;
     audioStreamId?: number | null;
   },
   videoStreams: number[],
-): { videoStreamId?: number | null; audioStreamId?: null } {
+  audioStreams: number[],
+): { videoStreamId?: number | null; audioStreamId?: number | null } {
   return {
     ...(request.videoStreamId === undefined
       ? {}
       : { videoStreamId: videoStreams[0] ?? null }),
-    ...(request.audioStreamId === undefined ? {} : { audioStreamId: null }),
+    ...(request.audioStreamId === undefined
+      ? {}
+      : { audioStreamId: audioStreams[0] ?? null }),
   };
 }
 

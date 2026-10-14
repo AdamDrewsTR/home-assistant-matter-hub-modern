@@ -17,7 +17,8 @@ import {
 } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { ServerNode } from "@matter/main/node";
-import { Invoke } from "@matter/main/protocol";
+import { Invoke, Write } from "@matter/main/protocol";
+import { StatusCode } from "@matter/main/types";
 import { StreamUsage } from "@matter/types";
 import type { Connection } from "home-assistant-js-websocket";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -238,6 +239,79 @@ async function smartThingsPlayer() {
   return { player, counts, offer: player.localDescription?.sdp ?? "" };
 }
 
+// Offer, register the session like SmartThings does, wait for the answer on the
+// requestor and apply it to the player.
+async function startLiveView(
+  // biome-ignore lint/suspicious/noExplicitAny: matter.js client API is loosely typed
+  client: any,
+  camera: Endpoint,
+  requestor: Endpoint,
+  streams: Record<string, unknown>,
+) {
+  const answers: string[] = [];
+  // biome-ignore lint/suspicious/noExplicitAny: behavior events
+  (requestor.events as any).webRtcTransportRequestor.answer.on(
+    (_s: unknown, sdp: string) => answers.push(sdp),
+  );
+  const { player, counts, offer } = await smartThingsPlayer();
+  const res = await invoke(
+    client,
+    camera.number,
+    WebRtcTransportProvider.Cluster,
+    "provideOffer",
+    {
+      webRtcSessionId: null,
+      sdp: offer,
+      streamUsage: StreamUsage.LiveView,
+      originatingEndpointId: requestor.number,
+      ...streams,
+    },
+  );
+  // biome-ignore lint/suspicious/noExplicitAny: response shape
+  const response = res[0]?.data as any;
+  const sessionId = response?.webRtcSessionId;
+  const peer = client.peerAddress ?? client.state.commissioning?.peerAddress;
+  await requestor.act((agent) =>
+    // biome-ignore lint/suspicious/noExplicitAny: behavior API
+    (agent as any).webRtcTransportRequestor.upsertSession({
+      id: sessionId,
+      peerNodeId: peer.nodeId,
+      peerEndpointId: camera.number,
+      streamUsage: StreamUsage.LiveView,
+      videoStreams: [1],
+      metadataEnabled: false,
+      fabricIndex: peer.fabricIndex,
+    }),
+  );
+  const deadline = Date.now() + 30_000;
+  while (answers.length === 0 && Date.now() < deadline) await delay(25);
+  expect(answers).toHaveLength(1);
+  await player.setRemoteDescription({ type: "answer", sdp: answers[0] });
+  const mediaDeadline = Date.now() + 15_000;
+  while (
+    (counts.video === 0 || counts.audio === 0) &&
+    Date.now() < mediaDeadline
+  )
+    await delay(25);
+  return { response, sessionId, counts };
+}
+
+function audioState(camera: Endpoint) {
+  // biome-ignore lint/suspicious/noExplicitAny: read behavior state
+  const state = camera.state as any;
+  return {
+    sessions: state.webRtcTransportProvider.currentSessions.map(
+      (s: { audioStreams?: number[] }) => s.audioStreams,
+    ),
+    streams: state.cameraAvStreamManagement.allocatedAudioStreams.map(
+      (s: { audioStreamId: number; referenceCount: number }) => [
+        s.audioStreamId,
+        s.referenceCount,
+      ],
+    ),
+  };
+}
+
 describe.skipIf(!process.env.HAMH_LOOPBACK)(
   "camera live view over loopback",
   () => {
@@ -353,6 +427,195 @@ describe.skipIf(!process.env.HAMH_LOOPBACK)(
         );
         expect(end[0]?.status ?? 0).toBe(0);
         expect(ha.unsubscribedCount()).toBe(1);
+      },
+    );
+
+    // The request of the real SmartThings hub log (#373): VideoStreamAllocate
+    // without watermark/OSD, ProvideOffer with VideoStreamID and no audio id.
+    it(
+      "keeps the sound of SmartThings' live view with the Audio feature",
+      { timeout: 120_000 },
+      async () => {
+        const { camera, requestor, client } = await bringUp();
+        const alloc = await invoke(
+          client,
+          camera.number,
+          CameraAvStreamManagement.Cluster,
+          "videoStreamAllocate",
+          {
+            streamUsage: StreamUsage.LiveView,
+            videoCodec: CameraAvStreamManagement.VideoCodec.H264,
+            minFrameRate: 30,
+            maxFrameRate: 30,
+            minResolution: { width: 320, height: 180 },
+            maxResolution: { width: 1920, height: 1080 },
+            minBitRate: 10_000,
+            maxBitRate: 2_000_000,
+            keyFrameInterval: 4000,
+          },
+        );
+        // biome-ignore lint/suspicious/noExplicitAny: response shape
+        const videoStreamId = (alloc[0]?.data as any)?.videoStreamId;
+
+        const { response, sessionId, counts } = await startLiveView(
+          client,
+          camera,
+          requestor,
+          { videoStreamId },
+        );
+        expect(response).not.toHaveProperty("audioStreamId");
+        expect(counts.video).toBeGreaterThan(0);
+        expect(counts.audio).toBeGreaterThan(0);
+        // nothing allocated on its behalf, the AV state stays untouched
+        expect(audioState(camera)).toEqual({
+          sessions: [undefined],
+          streams: [],
+        });
+        await invoke(
+          client,
+          camera.number,
+          WebRtcTransportProvider.Cluster,
+          "endSession",
+          { webRtcSessionId: sessionId, reason: 0 },
+        );
+        await delay(50);
+        expect(audioState(camera)).toEqual({ sessions: [], streams: [] });
+      },
+    );
+
+    it(
+      "lists an allocated LiveView audio stream for SmartThings' offer",
+      { timeout: 120_000 },
+      async () => {
+        const { camera, requestor, client } = await bringUp();
+        await invoke(
+          client,
+          camera.number,
+          CameraAvStreamManagement.Cluster,
+          "audioStreamAllocate",
+          {
+            streamUsage: StreamUsage.LiveView,
+            audioCodec: CameraAvStreamManagement.AudioCodec.Opus,
+            channelCount: 2,
+            sampleRate: 48_000,
+            bitRate: 64_000,
+            bitDepth: 16,
+          },
+        );
+
+        const { response, sessionId, counts } = await startLiveView(
+          client,
+          camera,
+          requestor,
+          { videoStreamId: null },
+        );
+        expect(response).not.toHaveProperty("audioStreamId");
+        expect(counts.audio).toBeGreaterThan(0);
+        await delay(50);
+        expect(audioState(camera)).toEqual({
+          sessions: [[0]],
+          streams: [[0, 1]],
+        });
+
+        await invoke(
+          client,
+          camera.number,
+          WebRtcTransportProvider.Cluster,
+          "endSession",
+          { webRtcSessionId: sessionId, reason: 0 },
+        );
+        await delay(50);
+        expect(audioState(camera)).toEqual({ sessions: [], streams: [[0, 0]] });
+      },
+    );
+
+    it(
+      "streams an allocated audio stream and honors MicrophoneMuted",
+      { timeout: 120_000 },
+      async () => {
+        const { camera, requestor, client } = await bringUp();
+        const audio = await invoke(
+          client,
+          camera.number,
+          CameraAvStreamManagement.Cluster,
+          "audioStreamAllocate",
+          {
+            streamUsage: StreamUsage.LiveView,
+            audioCodec: CameraAvStreamManagement.AudioCodec.Opus,
+            channelCount: 1,
+            sampleRate: 48_000,
+            bitRate: 32_000,
+            bitDepth: 16,
+          },
+        );
+        // biome-ignore lint/suspicious/noExplicitAny: response shape
+        const audioStreamId = (audio[0]?.data as any)?.audioStreamId;
+        expect(audioStreamId).toBe(0);
+
+        const { response, sessionId, counts } = await startLiveView(
+          client,
+          camera,
+          requestor,
+          { videoStreamId: null, audioStreamId },
+        );
+        expect(response.audioStreamId).toBe(audioStreamId);
+        expect(counts.audio).toBeGreaterThan(0);
+        expect(audioState(camera).streams).toEqual([[audioStreamId, 1]]);
+
+        // a stream in use cannot go
+        const busy = await invoke(
+          client,
+          camera.number,
+          CameraAvStreamManagement.Cluster,
+          "audioStreamDeallocate",
+          { audioStreamId },
+        );
+        expect(busy[0]?.status).toBe(StatusCode.InvalidInState);
+
+        // the relay cannot change the gain
+        const level = await client.interaction.write(
+          Write({
+            kind: "attribute",
+            endpoint: camera.number,
+            cluster: CameraAvStreamManagement.Cluster,
+            attributes: "microphoneVolumeLevel",
+            value: 100,
+          } as never),
+        );
+        expect(JSON.stringify(level)).toMatch(/"status":135/); // CONSTRAINT_ERROR
+
+        await client.interaction.write(
+          Write({
+            kind: "attribute",
+            endpoint: camera.number,
+            cluster: CameraAvStreamManagement.Cluster,
+            attributes: "microphoneMuted",
+            value: true,
+          } as never),
+        );
+        await delay(200);
+        const before = { ...counts };
+        await delay(500);
+        expect(counts.video - before.video).toBeGreaterThan(5);
+        expect(counts.audio - before.audio).toBe(0);
+
+        await invoke(
+          client,
+          camera.number,
+          WebRtcTransportProvider.Cluster,
+          "endSession",
+          { webRtcSessionId: sessionId, reason: 0 },
+        );
+        await delay(50);
+        const freed = await invoke(
+          client,
+          camera.number,
+          CameraAvStreamManagement.Cluster,
+          "audioStreamDeallocate",
+          { audioStreamId },
+        );
+        expect(freed[0]?.status ?? 0).toBe(0);
+        expect(audioState(camera).streams).toEqual([]);
       },
     );
   },

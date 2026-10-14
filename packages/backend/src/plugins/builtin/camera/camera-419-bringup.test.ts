@@ -3,9 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Environment, Logger, VariableService } from "@matter/general";
 import { Endpoint, VendorId } from "@matter/main";
-import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors";
+import {
+  BridgedDeviceBasicInformationServer,
+  CameraAvStreamManagementServer,
+  WebRtcTransportProviderServer,
+} from "@matter/main/behaviors";
 import { CameraAvStreamManagement } from "@matter/main/clusters";
+import { CameraDevice } from "@matter/main/devices";
 import { ServerNode } from "@matter/main/node";
+import { StreamUsage } from "@matter/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AggregatorEndpoint } from "../../../matter/endpoints/aggregator-endpoint.js";
 import { BridgeDataProvider } from "../../../services/bridges/bridge-data-provider.js";
@@ -14,9 +20,9 @@ import { createCameraEndpointType } from "./camera-endpoint.js";
 import type { WebRtcBridge } from "./webrtc-bridge.js";
 
 // #419: the camera endpoint dropped every mandatory CameraAvStreamManagement
-// attribute behind the Video feature, and enabled Audio without forwarding any,
+// attribute behind the Video feature, and enabled Audio without its attributes,
 // so init failed with an AggregateError of conformance violations. This asserts
-// the endpoint mounts and carries the video/snapshot params a controller needs.
+// the endpoint mounts and carries the params a controller needs.
 
 const bridge = {
   snapshot: async () => new Uint8Array(0),
@@ -41,10 +47,14 @@ afterEach(async () => {
 });
 
 async function mount(type: unknown): Promise<Endpoint> {
+  return mountAs(`camera419-node-${counter++}`, type);
+}
+
+async function mountAs(id: string, type: unknown): Promise<Endpoint> {
   server = await ServerNode.create({
     // biome-ignore lint/suspicious/noExplicitAny: env valid at runtime
     environment: env as any,
-    id: `camera419-node-${counter++}`,
+    id,
     network: { port: 0 },
     commissioning: { passcode: 20202021, discriminator: 3840 },
     basicInformation: { vendorId: VendorId(0xfff1), productId: 0x8000 },
@@ -69,6 +79,7 @@ interface CapturedState {
   bandwidth: number;
   bufferSize: number;
   rotation: number;
+  microphone: unknown;
 }
 
 async function read(endpoint: Endpoint): Promise<CapturedState> {
@@ -94,6 +105,14 @@ async function read(endpoint: Endpoint): Promise<CapturedState> {
       bandwidth: st.maxNetworkBandwidth,
       bufferSize: st.maxContentBufferSize,
       rotation: st.imageRotation,
+      microphone: {
+        capabilities: st.microphoneCapabilities,
+        muted: st.microphoneMuted,
+        level: st.microphoneVolumeLevel,
+        min: st.microphoneMinLevel,
+        max: st.microphoneMaxLevel,
+        streams: st.allocatedAudioStreams,
+      },
     };
   });
   if (!out) {
@@ -115,12 +134,136 @@ describe("camera endpoint bring-up (#419)", () => {
     expect(s.viewport).toEqual({ x1: 0, y1: 0, x2: 1920, y2: 1080 });
     expect(s.snapCodec).toBe(CameraAvStreamManagement.ImageCodec.Jpeg);
     expect(s.snapEncoded).toBe(false);
-    expect(s.fAudio).toBe(false);
+    // Camera requires Audio
+    expect(s.fAudio).toBe(true);
     expect(s.fVideo).toBe(true);
     expect(s.fSnapshot).toBe(true);
     expect(s.bandwidth).toBe(20_000_000);
     expect(s.bufferSize).toBe(1_048_576);
     expect(s.rotation).toBe(0);
+    // Opus as relayed, a fixed gain (min equal to max)
+    expect(s.microphone).toEqual({
+      capabilities: {
+        maxNumberOfChannels: 2,
+        supportedCodecs: [CameraAvStreamManagement.AudioCodec.Opus],
+        supportedSampleRates: [48_000, 24_000, 16_000, 12_000, 8_000],
+        supportedBitDepths: [16, 24, 32],
+      },
+      muted: false,
+      level: 254,
+      min: 254,
+      max: 254,
+      streams: [],
+    });
+  });
+
+  it("restores a muted microphone and recounts stream use on start", async () => {
+    const muted: [string, boolean][] = [];
+    const recording = {
+      ...bridge,
+      setMicrophoneMuted: (entityId: string, m: boolean) =>
+        muted.push([entityId, m]),
+    } as unknown as WebRtcBridge;
+    const stream = {
+      audioStreamId: 4,
+      streamUsage: StreamUsage.LiveView,
+      audioCodec: CameraAvStreamManagement.AudioCodec.Opus,
+      channelCount: 1,
+      sampleRate: 48_000,
+      bitRate: 32_000,
+      bitDepth: 16,
+      referenceCount: 2,
+    };
+    const endpoint = await mount(
+      createCameraEndpointType(recording, "camera.front").set({
+        cameraAvStreamManagement: {
+          microphoneMuted: true,
+          allocatedAudioStreams: [stream],
+        },
+      }),
+    );
+
+    expect(muted).toEqual([["camera.front", true]]);
+    // no WebRTC session survives a restart
+    expect(
+      // biome-ignore lint/suspicious/noExplicitAny: read behavior state
+      (endpoint.state as any).cameraAvStreamManagement.allocatedAudioStreams,
+    ).toEqual([{ ...stream, referenceCount: 0 }]);
+  });
+
+  it("keeps the stored video streams of a camera paired before Audio", async () => {
+    // what alpha.936 and older mounted
+    const Legacy = CameraAvStreamManagementServer.with(
+      "Video",
+      "Snapshot",
+      "ImageControl",
+    );
+    const { cameraAvStreamManagement: current } = createCameraEndpointType(
+      bridge,
+      "camera.front",
+    ).defaults as unknown as {
+      cameraAvStreamManagement: Record<string, unknown>;
+    };
+    // the attributes the video only build set
+    const legacyDefaults = Object.fromEntries(
+      [
+        "supportedStreamUsages",
+        "streamUsagePriorities",
+        "allocatedVideoStreams",
+        "allocatedSnapshotStreams",
+        "maxConcurrentEncoders",
+        "maxEncodedPixelRate",
+        "maxNetworkBandwidth",
+        "currentFrameRate",
+        "videoSensorParams",
+        "viewport",
+        "minViewportResolution",
+        "rateDistortionTradeOffPoints",
+        "maxContentBufferSize",
+        "imageRotation",
+        "imageFlipHorizontal",
+        "imageFlipVertical",
+        "snapshotCapabilities",
+      ].map((k) => [k, current[k]]),
+    );
+    const stored = {
+      videoStreamId: 1,
+      streamUsage: StreamUsage.LiveView,
+      videoCodec: CameraAvStreamManagement.VideoCodec.H264,
+      minFrameRate: 30,
+      maxFrameRate: 30,
+      minResolution: { width: 320, height: 180 },
+      maxResolution: { width: 1920, height: 1080 },
+      minBitRate: 10_000,
+      maxBitRate: 2_000_000,
+      keyFrameInterval: 4000,
+      referenceCount: 1,
+    };
+    const old = await mountAs(
+      "camera-upgrade",
+      CameraDevice.with(Legacy, WebRtcTransportProviderServer).set({
+        cameraAvStreamManagement: legacyDefaults,
+        webRtcTransportProvider: { currentSessions: [] },
+      }),
+    );
+    await old.act((agent) => {
+      // biome-ignore lint/suspicious/noExplicitAny: write behavior state
+      (agent as any).cameraAvStreamManagement.state.allocatedVideoStreams = [
+        stored,
+      ];
+    });
+    await server?.close();
+
+    const endpoint = await mountAs(
+      "camera-upgrade",
+      createCameraEndpointType(bridge, "camera.front"),
+    );
+    const s = await read(endpoint);
+    expect(s.fAudio).toBe(true);
+    expect(
+      // biome-ignore lint/suspicious/noExplicitAny: read behavior state
+      (endpoint.state as any).cameraAvStreamManagement.allocatedVideoStreams,
+    ).toEqual([stored]);
   });
 
   it("threads a custom sensor into videoSensorParams and viewport", async () => {
