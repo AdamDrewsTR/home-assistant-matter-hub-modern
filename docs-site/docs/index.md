@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.935)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.936)</strong></summary>
+
+**v2.1.0-alpha.936:**
+- 🧵 **matter.js 0.18 nightly from 2026-10-14**: newer build of the coming 0.18 release. It now counts the power source, electrical sensor and energy management types an endpoint lists itself, so the fixes from alpha.935 leave no device type warnings behind
 
 **v2.1.0-alpha.935:**
 - 🔌 **Plugs and switches advertise the Matter Lighting feature again**: Matter requires it on every plug type and on a cover shown as a light. Switches, input booleans, scripts, scenes, automations, buttons, remotes, sirens, on/off fans, select switches, vacuum room switches and alarm panels shown as a plug carry it now. Its timed and scene commands act like a plain on or off, so a controller can never turn something off later on its own. Paired controllers may need a re-discover to pick it up
