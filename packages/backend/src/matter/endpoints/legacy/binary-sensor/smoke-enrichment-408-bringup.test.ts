@@ -309,18 +309,7 @@ describe("smoke/CO alarm enrichment (#408)", () => {
     const verdict = server!.env
       .get(DeviceTypeConformanceService)
       .validateNodeScope(server!, { refuse: false });
-    // Nightlies before 20261014 never count a PowerSource the endpoint lists
-    // itself, the battery variant included.
-    const violations = (verdict.get(endpoint) ?? []).filter(
-      (v) =>
-        !(
-          v.kind === "instanceCount" &&
-          v.requirement === "device:PowerSource" &&
-          v.detail.endsWith("found 0") &&
-          deviceTypes.includes(0x11)
-        ),
-    );
-    expect(violations).toEqual([]);
+    expect(verdict.get(endpoint) ?? []).toEqual([]);
 
     expect(deviceTypes).toEqual([0x76, 0x11, 0x13]);
     expect(state.powerSource.featureMap.wired).toBe(true);

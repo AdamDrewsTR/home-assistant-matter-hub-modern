@@ -297,16 +297,7 @@ describe("energy evse bring-up (#419 seeding)", () => {
     );
 
     expect(snapshot.deviceTypes).toContain(DEVICE_ENERGY_MANAGEMENT);
-    // The pinned 20261008 nightly counts components on child endpoints only,
-    // so it still flags the ones listed on this endpoint itself.
-    const ownComponents = [
-      "PowerSource",
-      "ElectricalSensor",
-      "DeviceEnergyManagement",
-    ].map((name) => `instanceCount EnergyEvse device:${name}`);
-    expect(
-      snapshot.violations.filter((v) => !ownComponents.includes(v)),
-    ).toEqual([]);
+    expect(snapshot.violations).toEqual([]);
     expect(snapshot.dem).toEqual({
       featureMap: {
         powerAdjustment: false,

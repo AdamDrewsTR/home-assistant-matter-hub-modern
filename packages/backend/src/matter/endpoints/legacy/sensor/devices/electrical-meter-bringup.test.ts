@@ -168,30 +168,14 @@ async function bringUp(
   return snapshot;
 }
 
-// Device type violations of the mounted endpoint. Nightlies before 20261014
-// never count a utility device type the endpoint lists itself, so that
-// "found 0" is skipped.
-const UTILITY: Record<string, number> = {
-  "device:PowerSource": POWER_SOURCE,
-  "device:ElectricalSensor": ELECTRICAL_SENSOR,
-};
+// Device type violations of the mounted endpoint.
 function violations() {
   const verdict = server!.env
     .get(DeviceTypeConformanceService)
     .validateNodeScope(server!, { refuse: false });
-  const listed = endpoint.state.descriptor.deviceTypeList.map((d) =>
-    Number(d.deviceType),
+  return (verdict.get(endpoint) ?? []).map(
+    (v) => `${v.kind} ${v.requirement}: ${v.detail}`,
   );
-  return (verdict.get(endpoint) ?? [])
-    .filter(
-      (v) =>
-        !(
-          v.kind === "instanceCount" &&
-          v.detail.endsWith("found 0") &&
-          listed.includes(UTILITY[v.requirement])
-        ),
-    )
-    .map((v) => `${v.kind} ${v.requirement}: ${v.detail}`);
 }
 
 describe("electrical meter bring-up (#419 seeding)", () => {

@@ -44,11 +44,11 @@
     "start": "dotenvx run -f ../../.env -- ./dist/backend/cli.js start"
   },
   "dependencies": {
-    "@matter/main": "0.18.0-alpha.0-20261008-6066b7499",
-    "@matter/nodejs": "0.18.0-alpha.0-20261008-6066b7499",
-    "@matter/protocol": "0.18.0-alpha.0-20261008-6066b7499",
-    "@matter/general": "0.18.0-alpha.0-20261008-6066b7499",
-    "@matter/types": "0.18.0-alpha.0-20261008-6066b7499",
+    "@matter/main": "0.18.0-alpha.0-20261014-dfdc3df35",
+    "@matter/nodejs": "0.18.0-alpha.0-20261014-dfdc3df35",
+    "@matter/protocol": "0.18.0-alpha.0-20261014-dfdc3df35",
+    "@matter/general": "0.18.0-alpha.0-20261014-dfdc3df35",
+    "@matter/types": "0.18.0-alpha.0-20261014-dfdc3df35",
     "ajv": "8.18.0",
     "archiver": "7.0.1",
     "color": "5.0.3",
