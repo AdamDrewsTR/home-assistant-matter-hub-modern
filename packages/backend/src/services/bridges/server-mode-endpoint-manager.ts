@@ -6,6 +6,10 @@ import type {
 import type { Logger } from "@matter/general";
 import { Service } from "../../core/ioc/service.js";
 import {
+  duplicateNumberTags,
+  setNumberTag,
+} from "../../matter/endpoints/duplicate-tags.js";
+import {
   createEndpointId,
   type EntityEndpoint,
 } from "../../matter/endpoints/entity-endpoint.js";
@@ -43,6 +47,8 @@ export const MAX_SERVER_MODE_DEVICES = 10;
 interface ManagedEndpoint {
   endpoint: EntityEndpoint;
   fingerprint: string;
+  // Common Number tag it was built with, see duplicateNumberTags
+  tag?: number;
 }
 
 /**
@@ -443,6 +449,8 @@ export class ServerModeEndpointManager extends Service {
         );
       }
 
+      // endpoint id of each entity built in this pass
+      const fresh = new Map<string, string>();
       for (const entityId of orderedIds) {
         const mapping = this.getEntityMapping(entityId);
 
@@ -532,26 +540,12 @@ export class ServerModeEndpointManager extends Service {
         }
 
         try {
-          const domain = entityId.split(".")[0] as HomeAssistantDomain;
-
-          // Vacuums use ServerModeVacuumDevice (no bridgedDeviceBasicInformation)
-          // so they appear standalone, which Apple Siri and Alexa require.
-          const endpoint =
-            domain === "vacuum"
-              ? await this.createServerModeVacuumEndpoint(
-                  entityId,
-                  mapping,
-                  resolved?.endpointId,
-                )
-              : await LegacyEndpoint.create(
-                  this.registry,
-                  entityId,
-                  mapping,
-                  undefined,
-                  true,
-                  resolved?.endpointId,
-                  resolved?.anchorEntityId,
-                );
+          const endpoint = await this.createEndpoint(
+            entityId,
+            mapping,
+            resolved?.endpointId,
+            resolved?.anchorEntityId,
+          );
 
           if (!endpoint) {
             this._failedEntities.push({
@@ -561,7 +555,7 @@ export class ServerModeEndpointManager extends Service {
             continue;
           }
 
-          await this.serverNode.addDevice(endpoint);
+          // added below, once every sibling's device type is known
           this.endpoints.set(entityId, {
             endpoint,
             fingerprint: this.mappingSync.fingerprintAsBuilt(
@@ -570,20 +564,90 @@ export class ServerModeEndpointManager extends Service {
               endpoint.mappedEntityIds,
             ),
           });
-          // mounted for real, so nothing this entity parked is reserved any
-          // more, not even an id it left behind under an older custom name
-          for (const [id, owner] of this.parkedEndpointIds) {
-            if (id === endpointId || owner === entityId) {
-              this.parkedEndpointIds.delete(id);
-            }
-          }
-          structureChanged = true;
-          this.log.info(`Server mode: Added device ${entityId}`);
+          fresh.set(entityId, endpointId);
         } catch (e) {
           const reason = e instanceof Error ? e.message : String(e);
           this.log.error(`Failed to create server mode device ${entityId}:`, e);
           this._failedEntities.push({ entityId, reason });
         }
+      }
+
+      // Same type siblings need a TagList (#301). It is fixed, so every tag is
+      // settled before anything is added, and a mounted sibling whose tag has
+      // to change is rebuilt. Sorted by endpoint id so a restart numbers alike.
+      const tags = duplicateNumberTags(
+        [...this.endpoints.values()]
+          .map((entry) => entry.endpoint)
+          .sort((a, b) => (a.id < b.id ? -1 : 1)),
+      );
+      for (const [entityId, entry] of [...this.endpoints]) {
+        const tag = tags.get(entry.endpoint);
+        // one held through the #438 grace or still without an HA state has
+        // nothing to rebuild from, it stays as it is
+        if (
+          fresh.has(entityId) ||
+          entry.tag === tag ||
+          !keep.has(entityId) ||
+          !this.registry.initialState(entityId)
+        ) {
+          continue;
+        }
+        await this.closeEndpoint(entityId);
+        if (this.endpoints.has(entityId)) continue;
+        structureChanged = true;
+        try {
+          const mapping = this.getEntityMapping(entityId);
+          // same id, so it keeps its number
+          const endpoint = await this.createEndpoint(
+            entityId,
+            mapping,
+            entry.endpoint.id,
+            resolvedByEntity.get(entityId)?.anchorEntityId,
+          );
+          if (!endpoint) throw new Error("Failed to rebuild endpoint");
+          this.endpoints.set(entityId, {
+            endpoint,
+            fingerprint: this.mappingSync.fingerprintAsBuilt(
+              mapping,
+              entityId,
+              endpoint.mappedEntityIds,
+            ),
+          });
+          if (tag !== undefined) tags.set(endpoint, tag);
+          fresh.set(entityId, endpoint.id);
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : String(e);
+          this.log.error(
+            `Failed to rebuild server mode device ${entityId}:`,
+            e,
+          );
+          this._failedEntities.push({ entityId, reason });
+        }
+      }
+
+      for (const [entityId, endpointId] of fresh) {
+        const entry = this.endpoints.get(entityId);
+        if (!entry) continue;
+        entry.tag = tags.get(entry.endpoint);
+        try {
+          if (entry.tag !== undefined) setNumberTag(entry.endpoint, entry.tag);
+          await this.serverNode.addDevice(entry.endpoint);
+        } catch (e) {
+          this.endpoints.delete(entityId);
+          const reason = e instanceof Error ? e.message : String(e);
+          this.log.error(`Failed to create server mode device ${entityId}:`, e);
+          this._failedEntities.push({ entityId, reason });
+          continue;
+        }
+        // mounted for real, so nothing this entity parked is reserved any
+        // more, not even an id it left behind under an older custom name
+        for (const [id, owner] of this.parkedEndpointIds) {
+          if (id === endpointId || owner === entityId) {
+            this.parkedEndpointIds.delete(id);
+          }
+        }
+        structureChanged = true;
+        this.log.info(`Server mode: Added device ${entityId}`);
       }
 
       // Identity and advertised type follow the primary entity only. Also run
@@ -686,6 +750,28 @@ export class ServerModeEndpointManager extends Service {
       ok = (await this.serverNode.updateAdvertisedDeviceType(deviceType)) && ok;
     }
     return ok;
+  }
+
+  // Vacuums use ServerModeVacuumDevice (no bridgedDeviceBasicInformation) so
+  // they appear standalone, which Apple Siri and Alexa require.
+  private createEndpoint(
+    entityId: string,
+    mapping: EntityMappingConfig | undefined,
+    endpointId: string | undefined,
+    anchorEntityId: string | undefined,
+  ): Promise<EntityEndpoint | undefined> {
+    const domain = entityId.split(".")[0] as HomeAssistantDomain;
+    return domain === "vacuum"
+      ? this.createServerModeVacuumEndpoint(entityId, mapping, endpointId)
+      : LegacyEndpoint.create(
+          this.registry,
+          entityId,
+          mapping,
+          undefined,
+          true,
+          endpointId,
+          anchorEntityId,
+        );
   }
 
   /**
