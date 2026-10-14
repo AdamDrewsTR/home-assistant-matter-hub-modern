@@ -447,6 +447,41 @@ describe("provideOffer negotiates after responding", () => {
       reason: 5, // NoUserMedia
     });
   });
+
+  it("drops the session when HA can't deliver and frees its audio stream", async () => {
+    setRequestorInvokeForTests(async () => true);
+    let haFails = () => {};
+    const bridge = {
+      ...fakeBridge().bridge,
+      acceptControllerOffer: () =>
+        new Promise<string>((_, reject) => {
+          haFails = () => reject(new Error("HA WebRTC error: no stream"));
+        }),
+    } as unknown as WebRtcBridge;
+    const endpoint = await mountCamera(bridge);
+    const alloc = await audioCall(endpoint, "audioStreamAllocate", opusRequest);
+    const audioStreamId = alloc?.audioStreamId ?? -1;
+
+    const res = await provideOffer(
+      endpoint,
+      null,
+      { videoStreamId: 1, audioStreamId },
+      true,
+    );
+    touched.add(res.webRtcSessionId);
+    await vi.waitFor(() =>
+      expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(1),
+    );
+    expect(currentSessions(endpoint)).toHaveLength(1);
+    haFails();
+
+    await vi.waitFor(() => expect(currentSessions(endpoint)).toEqual([]));
+    await vi.waitFor(() =>
+      expect(allocatedAudioStreams(endpoint)[0].referenceCount).toBe(0),
+    );
+    await audioCall(endpoint, "audioStreamDeallocate", { audioStreamId });
+    expect(allocatedAudioStreams(endpoint)).toEqual([]);
+  });
 });
 
 describe("videoStreamAllocate", () => {

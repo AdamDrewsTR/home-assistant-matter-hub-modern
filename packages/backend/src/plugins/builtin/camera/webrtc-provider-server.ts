@@ -133,7 +133,7 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     // gathering ICE takes seconds, CHIP based controllers only wait about 2 s
     // for an invoke response; the answer SDP follows on the requestor.
     const bridge = this.state.bridge;
-    const state = this.state;
+    const endpoint = this.endpoint;
     const ice = {
       iceServers: request.iceServers,
       iceTransportPolicy: request.iceTransportPolicy,
@@ -142,12 +142,17 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     const cleanup = async () => {
       await bridge.endSession(id).catch(() => {});
       unregisterRequestor(id);
+      // this command's state expires with its transaction, prune in a new one
       try {
-        state.currentSessions = state.currentSessions.filter(
-          (s) => s.id !== id,
-        );
-      } catch {
+        await endpoint.act((agent) => {
+          const { state } = agent.get(CameraWebRtcProviderServer);
+          state.currentSessions = state.currentSessions.filter(
+            (s) => s.id !== id,
+          );
+        });
+      } catch (err) {
         // endpoint already disposed, nothing left to prune
+        logger.debug(`session=${id} not pruned (${entityId}): ${errText(err)}`);
       }
     };
     this.context.transaction.onFinalize(() =>
