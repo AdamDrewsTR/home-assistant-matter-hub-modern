@@ -378,7 +378,12 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.936)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.937)</strong></summary>
+
+**v2.1.0-alpha.937:**
+- 🎙️ **Cameras carry the Matter Audio feature**: live view keeps its sound, and the camera now answers audio stream requests the way the spec asks. SmartThings may show a microphone mute; muting stops the audio
+- 📷 **Camera sessions that could not be answered are dropped**: before, a failed live view stayed listed on the camera for good
+- 💡 **A timed on no longer turns lights off later on its own**: when a controller turns a light, or a switch or valve mapped as one, on for a while and then off by hand, the old timer used to fire later anyway. An off now ends it, as Matter requires
 
 **v2.1.0-alpha.936:**
 - 🧵 **matter.js 0.18 nightly from 2026-10-14**: newer build of the coming 0.18 release. It now counts the power source, electrical sensor and energy management types an endpoint lists itself, so the fixes from alpha.935 leave no device type warnings behind
