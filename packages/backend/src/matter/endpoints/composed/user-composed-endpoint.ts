@@ -14,7 +14,10 @@ import type { HomeAssistantStates } from "../../../services/home-assistant/home-
 import { BasicInformationServer } from "../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../behaviors/identify-server.js";
-import { DefaultPowerSourceServer } from "../../behaviors/power-source-server.js";
+import {
+  DefaultPowerSourceServer,
+  withoutWiredPowerSource,
+} from "../../behaviors/power-source-server.js";
 import { createLegacyEndpointType } from "../legacy/create-legacy-endpoint-type.js";
 import { updateEntityState } from "../update-entity-state.js";
 
@@ -23,9 +26,16 @@ const logger = Logger.get("UserComposedEndpoint");
 /**
  * Strip BridgedDeviceBasicInformation from an endpoint type.
  * Sub-endpoints in a composed device must not carry their own BasicInfo;
- * only the parent BridgedNodeEndpoint provides it.
+ * only the parent BridgedNodeEndpoint provides it. With the device battery on
+ * the parent, the wired default PowerSource goes too.
  */
-function stripBasicInformation(type: EndpointType): EndpointType {
+function stripBasicInformation(
+  type: EndpointType,
+  parentBattery: boolean,
+): EndpointType {
+  if (parentBattery) {
+    type = withoutWiredPowerSource(type);
+  }
   const behaviors = { ...type.behaviors };
   delete (behaviors as Record<string, unknown>).bridgedDeviceBasicInformation;
   return { ...type, behaviors };
@@ -192,17 +202,24 @@ export class UserComposedEndpoint extends Endpoint {
 
     // A merged parent can already own a PowerSource, a vacuum always does, and
     // .with() would replace it by behavior id and lose the domain's own charge
-    // state. The bare BridgedNodeEndpoint parent never has one.
-    if (hasParentBattery && !("powerSource" in parentType.behaviors)) {
-      parentType = parentType.with(
-        DefaultPowerSourceServer,
-      ) as MutableEndpointType;
+    // state. The bare BridgedNodeEndpoint parent never has one. The wired
+    // default of a type without a battery gives way to the device battery.
+    if (hasParentBattery) {
+      parentType = withoutWiredPowerSource(parentType) as MutableEndpointType;
+      if (!("powerSource" in parentType.behaviors)) {
+        parentType = parentType.with(
+          DefaultPowerSourceServer,
+        ) as MutableEndpointType;
+      }
     }
 
     if (!primaryOnParent) {
-      const primarySub = new Endpoint(stripBasicInformation(primaryType), {
-        id: `${endpointId}_primary`,
-      });
+      const primarySub = new Endpoint(
+        stripBasicInformation(primaryType, hasParentBattery),
+        {
+          id: `${endpointId}_primary`,
+        },
+      );
       parts.push(primarySub);
       subEndpointMap.set(primaryEntityId, primarySub);
     }
@@ -253,9 +270,12 @@ export class UserComposedEndpoint extends Endpoint {
         continue;
       }
 
-      const subEndpoint = new Endpoint(stripBasicInformation(subType), {
-        id: `${endpointId}_sub_${i}`,
-      });
+      const subEndpoint = new Endpoint(
+        stripBasicInformation(subType, hasParentBattery),
+        {
+          id: `${endpointId}_sub_${i}`,
+        },
+      );
       parts.push(subEndpoint);
       subEndpointMap.set(sub.entityId, subEndpoint);
       mappedIds.push(sub.entityId);

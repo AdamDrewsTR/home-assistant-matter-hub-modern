@@ -14,6 +14,10 @@ import { applyPatchState } from "../../../../../utils/apply-patch-state.js";
 import { BasicInformationServer } from "../../../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../../behaviors/identify-server.js";
+import {
+  GridTagDescriptorServer,
+  WiredPowerSourceServer,
+} from "../../../../behaviors/power-source-server.js";
 import { HaPowerTopologyServer } from "../../../../behaviors/power-topology-server.js";
 
 const PowerFeaturedBase = PowerBase.with("AlternatingCurrent");
@@ -223,11 +227,17 @@ export const EnergyServer = StandaloneEnergyServer.set({
 
 // SolarPower (0x0017) for generation. Kept for the solar_power / electrical_sensor
 // overrides; consumption sensors default to ElectricalMeter (0x0514) instead.
+// SolarPower requires Voltage, ActiveCurrent and ExportedEnergy plus a wired
+// PowerSource tagged Grid. Unmapped values stay null (cannot be determined).
 export const ElectricalSensorType = SolarPowerDevice.with(
   BasicInformationServer,
   IdentifyServer,
   HomeAssistantEntityBehavior,
   HaPowerTopologyServer,
-  PowerServer,
-  EnergyServer,
+  PowerServer.set({ voltage: null, activeCurrent: null }),
+  EnergyServer.with("CumulativeEnergy", "ImportedEnergy", "ExportedEnergy").set(
+    { cumulativeEnergyExported: null },
+  ),
+  WiredPowerSourceServer,
+  GridTagDescriptorServer,
 );

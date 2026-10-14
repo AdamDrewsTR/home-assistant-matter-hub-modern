@@ -8,8 +8,8 @@ import {
 } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { VendorId } from "@matter/main";
-import { SmokeCoAlarm } from "@matter/main/clusters";
-import { ServerNode } from "@matter/main/node";
+import { PowerSource, SmokeCoAlarm } from "@matter/main/clusters";
+import { DeviceTypeConformanceService, ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../../services/bridges/bridge-data-provider.js";
 import { BridgeRegistry } from "../../../../services/bridges/bridge-registry.js";
@@ -102,10 +102,11 @@ function registry(opts: {
   smoke: string;
   battery?: boolean;
   problem?: boolean;
+  deviceClass?: BinarySensorDeviceClass;
 }): BridgeRegistry {
   const states: Record<string, HomeAssistantEntityState> = {
     [SMOKE]: state(SMOKE, opts.smoke, {
-      device_class: BinarySensorDeviceClass.Smoke,
+      device_class: opts.deviceClass ?? BinarySensorDeviceClass.Smoke,
     }),
   };
   if (opts.battery) {
@@ -288,5 +289,63 @@ describe("smoke/CO alarm enrichment (#408)", () => {
     expect(s.batteryAlert).toBe(SmokeCoAlarm.AlarmState.Normal);
     expect(s.hardwareFaultAlert).toBe(false);
     expect(s.expressedState).toBe(SmokeCoAlarm.ExpressedState.Normal);
+  });
+
+  // SmokeCoAlarm mandates a PowerSource component. Without a battery the alarm
+  // gets the wired one on its own endpoint. CO and gas share CoAlarmType.
+  it.each([
+    BinarySensorDeviceClass.Smoke,
+    BinarySensorDeviceClass.CarbonMonoxide,
+    BinarySensorDeviceClass.Gas,
+  ])("gives a %s alarm without a battery a wired PowerSource", async (deviceClass) => {
+    const endpoint = await create(registry({ smoke: "off", deviceClass }));
+    await mount(endpoint);
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state off endpoint
+    const state = endpoint.state as any;
+    const deviceTypes = state.descriptor.deviceTypeList.map(
+      (d: { deviceType: number }) => Number(d.deviceType),
+    );
+
+    const verdict = server!.env
+      .get(DeviceTypeConformanceService)
+      .validateNodeScope(server!, { refuse: false });
+    // Nightlies before 20261014 never count a PowerSource the endpoint lists
+    // itself, the battery variant included.
+    const violations = (verdict.get(endpoint) ?? []).filter(
+      (v) =>
+        !(
+          v.kind === "instanceCount" &&
+          v.requirement === "device:PowerSource" &&
+          v.detail.endsWith("found 0") &&
+          deviceTypes.includes(0x11)
+        ),
+    );
+    expect(violations).toEqual([]);
+
+    expect(deviceTypes).toEqual([0x76, 0x11, 0x13]);
+    expect(state.powerSource.featureMap.wired).toBe(true);
+    expect(state.powerSource.featureMap.battery).toBe(false);
+    expect(state.powerSource.status).toBe(PowerSource.PowerSourceStatus.Active);
+    expect(state.powerSource.wiredCurrentType).toBe(
+      PowerSource.WiredCurrentType.Ac,
+    );
+    expect(state.powerSource.endpointList).toEqual([endpoint.number]);
+  });
+
+  // The override path attaches a mapped battery itself. It has to replace the
+  // wired default, else the alarm claims mains and loses its battery level.
+  it("keeps the mapped battery of a smoke_co_alarm override", async () => {
+    batteryPercent = 80;
+    const endpoint = await LegacyEndpoint.create(
+      registry({ smoke: "off", battery: true }),
+      SMOKE,
+      { entityId: SMOKE, matterDeviceType: "smoke_co_alarm" },
+    );
+    await mount(endpoint!);
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state off endpoint
+    const powerSource = (endpoint!.state as any).powerSource;
+    expect(powerSource.featureMap.battery).toBe(true);
+    expect(powerSource.featureMap.wired).toBe(false);
+    expect(powerSource.batPercentRemaining).toBe(160);
   });
 });

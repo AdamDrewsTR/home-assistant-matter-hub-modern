@@ -3,7 +3,17 @@ import type {
   HomeAssistantEntityState,
 } from "@home-assistant-matter-hub/common";
 import { Logger } from "@matter/general";
-import { PowerSourceServer as Base } from "@matter/main/behaviors";
+import {
+  type Behavior,
+  type EndpointType,
+  MutableEndpoint,
+  PowerSourceTag,
+  SupportedBehaviors,
+} from "@matter/main";
+import {
+  PowerSourceServer as Base,
+  DescriptorServer,
+} from "@matter/main/behaviors";
 import { PowerSource } from "@matter/main/clusters";
 import { EntityStateProvider } from "../../services/bridges/entity-state-provider.js";
 import { applyPatchState } from "../../utils/apply-patch-state.js";
@@ -230,3 +240,62 @@ export const defaultBatteryConfig: PowerSourceConfig = {
  * Use this instead of duplicating the battery getter in every domain endpoint.
  */
 export const DefaultPowerSourceServer = PowerSourceServer(defaultBatteryConfig);
+
+// Wired default for device types that mandate a PowerSource (smoke/CO alarm,
+// solar) on a device without a battery. A mapped battery replaces it, see
+// withoutWiredPowerSource. EVSE keeps its own copy so that rule skips it.
+// Status, Order and Description are M; WiredCurrentType is M with WIRED.
+const WiredBase = Base.with("Wired");
+
+class WiredPowerSourceServerBase extends WiredBase {
+  override async initialize() {
+    await super.initialize();
+    // EndpointList is mandatory; controllers need this endpoint's number to
+    // associate the power source with the device.
+    const endpointNumber = this.endpoint.number;
+    if (endpointNumber != null) {
+      applyPatchState(this.state, { endpointList: [endpointNumber] });
+    }
+  }
+}
+
+export const WiredPowerSourceServer = WiredPowerSourceServerBase.set({
+  status: PowerSource.PowerSourceStatus.Active,
+  order: 0,
+  description: "Mains",
+  wiredCurrentType: PowerSource.WiredCurrentType.Ac,
+});
+
+// SolarPower wants the Grid tag next to its wired PowerSource.
+export const GridTagDescriptorServer = DescriptorServer.with("TagList").set({
+  tagList: [
+    {
+      mfgCode: null,
+      namespaceId: PowerSourceTag.Grid.namespaceId,
+      tag: PowerSourceTag.Grid.tag,
+    },
+  ],
+});
+
+/**
+ * The wired default only stands in for a missing battery. Drop it, and the
+ * Grid tag that describes it, before a battery takes over.
+ */
+export function withoutWiredPowerSource(type: EndpointType): EndpointType {
+  const behaviors = type.behaviors as Record<string, Behavior.Type>;
+  if (behaviors.powerSource !== WiredPowerSourceServer) {
+    return type;
+  }
+  const kept = Object.values(behaviors).filter(
+    (b) => b !== WiredPowerSourceServer && b !== GridTagDescriptorServer,
+  );
+  return MutableEndpoint({
+    name: type.name,
+    deviceType: type.deviceType,
+    deviceRevision: type.deviceRevision,
+    deviceClass: type.deviceClass,
+    requirements: type.requirements,
+    clientClusters: type.clientClusters,
+    behaviors: SupportedBehaviors(...kept),
+  });
+}
