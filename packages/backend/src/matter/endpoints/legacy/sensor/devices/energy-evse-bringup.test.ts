@@ -7,13 +7,14 @@ import type {
 } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { Endpoint, VendorId } from "@matter/main";
-import { ServerNode } from "@matter/main/node";
+import { DeviceTypeConformanceService, ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../../../services/bridges/bridge-data-provider.js";
 import { EntityStateProvider } from "../../../../../services/bridges/entity-state-provider.js";
 import { HomeAssistantActions } from "../../../../../services/home-assistant/home-assistant-actions.js";
 import { HomeAssistantConfig } from "../../../../../services/home-assistant/home-assistant-config.js";
 import { AggregatorEndpoint } from "../../../aggregator-endpoint.js";
+import { updateEntityState } from "../../../update-entity-state.js";
 import { createLegacyEndpointType } from "../../create-legacy-endpoint-type.js";
 
 // #419: an EnergyEvse (0x050C) whose mandatory EnergyEvse + EnergyEvseMode
@@ -25,11 +26,13 @@ const ENERGY_EVSE = 0x050c; // 1292
 const ELECTRICAL_SENSOR = 0x0510; // 1296
 const POWER_SOURCE = 0x0011; // 17
 const BRIDGED_NODE = 0x0013; // 19
+const DEVICE_ENERGY_MANAGEMENT = 0x050d; // 1293
 
 let dir: string;
 let env: Environment;
 let counter = 0;
 let server: ServerNode | undefined;
+let mounted: Endpoint | undefined;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "hamh-evse-"));
@@ -108,6 +111,9 @@ interface Snapshot {
   nodeTopology: boolean;
   setTopology: boolean;
   dynamicPowerFlow: boolean;
+  violations: string[];
+  // biome-ignore lint/suspicious/noExplicitAny: raw cluster state
+  dem: any;
 }
 
 async function bringUp(
@@ -134,6 +140,7 @@ async function bringUp(
   await server.add(aggregator);
   const endpoint = new Endpoint(type, { id: "evse" });
   await aggregator.add(endpoint);
+  mounted = endpoint;
 
   const snapshot: Snapshot = {
     deviceTypes: [],
@@ -151,6 +158,8 @@ async function bringUp(
     nodeTopology: false,
     setTopology: false,
     dynamicPowerFlow: false,
+    violations: [],
+    dem: undefined,
   };
   await endpoint.act((agent) => {
     // biome-ignore lint/suspicious/noExplicitAny: read cluster state
@@ -184,7 +193,23 @@ async function bringUp(
     snapshot.nodeTopology = topology?.nodeTopology === true;
     snapshot.setTopology = topology?.setTopology === true;
     snapshot.dynamicPowerFlow = topology?.dynamicPowerFlow === true;
+    const dem = a.deviceEnergyManagement?.state;
+    snapshot.dem = dem && {
+      featureMap: dem.featureMap,
+      esaType: dem.esaType,
+      esaCanGenerate: dem.esaCanGenerate,
+      esaState: dem.esaState,
+      absMinPower: dem.absMinPower,
+      absMaxPower: dem.absMaxPower,
+      forecast: dem.forecast,
+    };
   });
+  const verdict = server.env
+    .get(DeviceTypeConformanceService)
+    .validateNodeScope(endpoint, { refuse: false });
+  snapshot.violations = (verdict.get(endpoint) ?? []).map(
+    (v) => `${v.kind} ${v.deviceType} ${v.requirement}`,
+  );
   return snapshot;
 }
 
@@ -235,6 +260,7 @@ describe("energy evse bring-up (#419 seeding)", () => {
     expect(snapshot.deviceTypes).toEqual([
       ENERGY_EVSE,
       ELECTRICAL_SENSOR,
+      DEVICE_ENERGY_MANAGEMENT,
       POWER_SOURCE,
       BRIDGED_NODE,
     ]);
@@ -261,5 +287,69 @@ describe("energy evse bring-up (#419 seeding)", () => {
     // so the whole map is pinned instead of just the set bit.
     expect(snapshot.setTopology).toBe(true);
     expect(snapshot.dynamicPowerFlow).toBe(false);
+  });
+
+  // EnergyEvse requires a DeviceEnergyManagement component with PFR. Nothing
+  // adjustable is claimed and the forecast stays null.
+  it("carries DeviceEnergyManagement and meets its device types", async () => {
+    const snapshot = await bringUp(
+      statusEntity("sensor.wallbox_status", "idle"),
+    );
+
+    expect(snapshot.deviceTypes).toContain(DEVICE_ENERGY_MANAGEMENT);
+    // The pinned 20261008 nightly counts components on child endpoints only,
+    // so it still flags the ones listed on this endpoint itself.
+    const ownComponents = [
+      "PowerSource",
+      "ElectricalSensor",
+      "DeviceEnergyManagement",
+    ].map((name) => `instanceCount EnergyEvse device:${name}`);
+    expect(
+      snapshot.violations.filter((v) => !ownComponents.includes(v)),
+    ).toEqual([]);
+    expect(snapshot.dem).toEqual({
+      featureMap: {
+        powerAdjustment: false,
+        powerForecastReporting: true,
+        stateForecastReporting: false,
+        startTimeAdjustment: false,
+        pausable: false,
+        forecastAdjustment: false,
+        constraintBasedAdjustment: false,
+      },
+      esaType: 0, // Evse
+      esaCanGenerate: false,
+      esaState: 1, // Online
+      absMinPower: 1_380_000, // 6 A at 230 V, in mW
+      absMaxPower: 7_360_000, // 32 A at 230 V
+      forecast: null,
+    });
+  });
+
+  it("reports the ESA offline while the status entity is unavailable", async () => {
+    const snapshot = await bringUp(
+      statusEntity("sensor.wallbox_status", "unavailable"),
+    );
+    expect(snapshot.dem.esaState).toBe(0); // Offline
+  });
+
+  it("follows the status entity into offline and back after mount", async () => {
+    await bringUp(statusEntity("sensor.wallbox_status", "idle"));
+    const endpoint = mounted as Endpoint;
+    const esaState = () =>
+      endpoint.act((agent) => {
+        // biome-ignore lint/suspicious/noExplicitAny: read cluster state
+        const a = agent as any;
+        return Number(a.deviceEnergyManagement.state.esaState);
+      });
+    const seen = [await esaState()];
+    for (const value of ["unavailable", "charging"]) {
+      await updateEntityState(
+        endpoint,
+        statusEntity("sensor.wallbox_status", value).state,
+      );
+      seen.push(await esaState());
+    }
+    expect(seen).toEqual([1, 0, 1]);
   });
 });

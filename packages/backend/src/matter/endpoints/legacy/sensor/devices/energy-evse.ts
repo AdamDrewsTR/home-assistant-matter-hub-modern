@@ -1,11 +1,13 @@
 import { Logger } from "@matter/general";
 import {
   DescriptorServer,
+  DeviceEnergyManagementServer,
   EnergyEvseServer as EvseBase,
   EnergyEvseModeServer as EvseModeBase,
   PowerSourceServer as PowerSourceBase,
 } from "@matter/main/behaviors";
 import {
+  DeviceEnergyManagement,
   EnergyEvse,
   EnergyEvseMode,
   ModeBase,
@@ -395,11 +397,50 @@ const EvsePowerSource = EvsePowerSourceServer.set({
   wiredCurrentType: PowerSource.WiredCurrentType.Ac,
 });
 
+// EnergyEvse requires a DeviceEnergyManagement component with PFR. HA has no
+// charging forecast and nothing drives a DEM power adjustment, so the
+// forecast stays null and no adjustment feature is claimed.
+class EvseEnergyManagementServer extends DeviceEnergyManagementServer.with(
+  "PowerForecastReporting",
+) {
+  override async initialize() {
+    await super.initialize();
+    const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
+    this.update();
+    this.reactTo(homeAssistant.onChange, this.update, {
+      offline: true,
+      lock: true,
+    });
+  }
+
+  private update() {
+    const { isAvailable } = this.agent.get(HomeAssistantEntityBehavior);
+    applyPatchState(this.state, {
+      esaState: isAvailable
+        ? DeviceEnergyManagement.EsaState.Online
+        : DeviceEnergyManagement.EsaState.Offline,
+    });
+  }
+}
+
+// HAMH knows the charge current range but not the mains voltage, so the power
+// range assumes 230 V single phase (mA x V = mW), like the CHIP evse-app.
+const NOMINAL_MAINS_V = 230;
+
+const EvseEnergyManagement = EvseEnergyManagementServer.set({
+  esaType: DeviceEnergyManagement.EsaType.Evse,
+  esaCanGenerate: false,
+  absMinPower: MIN_CHARGE_CURRENT_MA * NOMINAL_MAINS_V,
+  absMaxPower: CIRCUIT_CAPACITY_MA * NOMINAL_MAINS_V,
+  forecast: null,
+});
+
 // EnergyEvse (0x050C) plus the ElectricalSensor (0x0510) device type, since the
 // endpoint carries the measurement clusters (SmartThings needs each device type
-// listed to render them, #214). DescriptorServer must be mounted explicitly for
-// the deviceTypeList default below to apply; matter.js then appends the
-// cluster-derived types (PowerSource, BridgedNode).
+// listed to render them, #214), and its DeviceEnergyManagement (0x050D)
+// component. DescriptorServer must be mounted explicitly for the deviceTypeList
+// default below to apply; matter.js then appends the cluster-derived types
+// (PowerSource, BridgedNode).
 const EnergyEvseBase = EnergyEvseDevice.with(
   BasicInformationServer,
   IdentifyServer,
@@ -414,12 +455,14 @@ const EnergyEvseBase = EnergyEvseDevice.with(
   EnergyServer,
   // ElectricalSensor requires PowerTopology; matter.js does not enforce it.
   HaPowerTopologyServer,
+  EvseEnergyManagement,
   DescriptorServer,
 ).set({
   descriptor: {
     deviceTypeList: [
       { deviceType: DeviceTypeId(0x050c), revision: 2 },
       { deviceType: DeviceTypeId(0x0510), revision: 1 },
+      { deviceType: DeviceTypeId(0x050d), revision: 3 },
     ],
   },
 });
@@ -427,8 +470,5 @@ const EnergyEvseBase = EnergyEvseDevice.with(
 // EnergyEvse (0x050C) driven by a charger status entity, with the stage 1
 // measurement clusters folded onto the same endpoint.
 export function energyEvseType() {
-  // The spec also lists a DeviceEnergyManagement device type, but HA exposes no
-  // charging forecast/schedule to feed it honestly and every controller tested
-  // so far renders the EVSE without it, so it is deliberately omitted.
   return EnergyEvseBase;
 }

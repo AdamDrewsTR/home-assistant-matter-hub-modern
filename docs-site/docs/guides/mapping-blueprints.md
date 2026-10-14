@@ -174,7 +174,7 @@ Optional companion entities:
 - `currentLimitEntity`: a `number` entity in amperes for the charge current limit. EnableCharging writes the requested maximum here (clamped to the 6 to 32 A circuit capacity), and its live value feeds MaximumChargeCurrent (clamped the same way).
 - `powerEntity` / `energyEntity`: the same power (W) and energy (kWh) sensors used elsewhere, folded onto the charger endpoint as real-time power and cumulative energy.
 
-The endpoint also advertises the ElectricalSensor device type and a mains PowerSource. The Matter spec additionally lists a DeviceEnergyManagement device type, but Home Assistant exposes no charging forecast to feed it honestly, and the controllers tested so far render the EVSE without it, so it is left off.
+The endpoint also advertises the ElectricalSensor and DeviceEnergyManagement device types and a mains PowerSource. DeviceEnergyManagement only reports: it has no forecast (Home Assistant has none) and offers no power adjustment. Its power range is 1.38 to 7.36 kW, the 6 to 32 A range at 230 V single phase, and it reads offline while the status entity is unavailable or unknown.
 
 ```json
 {
