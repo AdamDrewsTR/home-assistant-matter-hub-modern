@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.937 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.939 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,14 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.937)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.939)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.939:**
+- 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+
+**v2.1.0-alpha.938:**
+- 🔤 **Device names fit the Matter byte limits**: names, product, vendor and version strings are cut by bytes, not characters. A 32 character Chinese name used to go out as up to 96 bytes where Matter allows 32, the likely reason Aqara hubs hang on "registering device" ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+- 📝 **Protocol log level in the alpha add-on**: new `protocol_log_level` option for the matter.js packet logs, only needed when you are asked for a protocol log
 
 **v2.1.0-alpha.937:**
 - 🎙️ **Cameras carry the Matter Audio feature**: live view keeps its sound, and the camera now answers audio stream requests the way the spec asks. SmartThings may show a microphone mute; muting stops the audio
