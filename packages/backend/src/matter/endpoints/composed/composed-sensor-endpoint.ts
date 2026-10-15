@@ -20,6 +20,7 @@ import { HomeAssistantConfig } from "../../../services/home-assistant/home-assis
 import type { HomeAssistantStates } from "../../../services/home-assistant/home-assistant-registry.js";
 import { convertPressureToHpa } from "../../../utils/converters/pressure.js";
 import { Temperature } from "../../../utils/converters/temperature.js";
+import { trimToLength } from "../../../utils/trim-to-length.js";
 import { BasicInformationServer } from "../../behaviors/basic-information-server.js";
 import { HaElectricalEnergyMeasurementServer } from "../../behaviors/electrical-energy-measurement-server.js";
 import { HaElectricalPowerMeasurementServer } from "../../behaviors/electrical-power-measurement-server.js";
@@ -224,9 +225,7 @@ export class ComposedSensorEndpoint extends Endpoint {
 
     if (config.areaName) {
       const truncatedName =
-        config.areaName.length > 16
-          ? config.areaName.substring(0, 16)
-          : config.areaName;
+        trimToLength(config.areaName, 16, "") ?? config.areaName;
       parentType = parentType.with(
         FixedLabelServer.set({
           labelList: [{ label: "room", value: truncatedName }],

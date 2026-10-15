@@ -20,6 +20,11 @@ describe("trimToLength", () => {
     expect(trimToLength("客厅吸顶灯", 32, "...")).toBe("客厅吸顶灯");
   });
 
+  it("cuts room labels to 16 bytes without a suffix", () => {
+    expect(trimToLength("主卧室卫生间", 16, "")).toBe("主卧室卫生");
+    expect(trimToLength("Living room", 16, "")).toBe("Living room");
+  });
+
   it("never splits a surrogate pair", () => {
     const trimmed = trimToLength("💡".repeat(20), 64, "...");
     expect(bytes(trimmed)).toBeLessThanOrEqual(64);

@@ -7,6 +7,7 @@ import type {
 import { Logger } from "@matter/general";
 import type { EndpointType } from "@matter/main";
 import { FixedLabelServer } from "@matter/main/behaviors";
+import { trimToLength } from "../../../utils/trim-to-length.js";
 import type { HomeAssistantEntityBehavior } from "../../behaviors/home-assistant-entity-behavior.js";
 import {
   DefaultPowerSourceServer,
@@ -212,8 +213,7 @@ export function createLegacyEndpointType(
 function addFixedLabel(type: EndpointType, areaName: string): EndpointType {
   // Matter spec: LabelStruct label and value fields are max 16 bytes each.
   // Truncate area name to prevent validation failures.
-  const truncatedName =
-    areaName.length > 16 ? areaName.substring(0, 16) : areaName;
+  const truncatedName = trimToLength(areaName, 16, "") ?? areaName;
   const fixedLabel = FixedLabelServer.set({
     labelList: [{ label: "room", value: truncatedName }],
   });

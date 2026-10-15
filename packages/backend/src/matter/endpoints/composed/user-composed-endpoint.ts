@@ -11,6 +11,7 @@ import { BridgedNodeEndpoint } from "@matter/main/endpoints";
 import debounce from "debounce";
 import type { BridgeRegistry } from "../../../services/bridges/bridge-registry.js";
 import type { HomeAssistantStates } from "../../../services/home-assistant/home-assistant-registry.js";
+import { trimToLength } from "../../../utils/trim-to-length.js";
 import { BasicInformationServer } from "../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../behaviors/identify-server.js";
@@ -191,9 +192,7 @@ export class UserComposedEndpoint extends Endpoint {
     // The merged parent already got the room label from createLegacyEndpointType.
     if (!primaryOnParent && config.areaName) {
       const truncatedName =
-        config.areaName.length > 16
-          ? config.areaName.substring(0, 16)
-          : config.areaName;
+        trimToLength(config.areaName, 16, "") ?? config.areaName;
       parentType = parentType.with(
         FixedLabelServer.set({
           labelList: [{ label: "room", value: truncatedName }],

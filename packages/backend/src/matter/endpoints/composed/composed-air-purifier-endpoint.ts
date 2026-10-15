@@ -25,6 +25,7 @@ import { autoPresetName } from "../../../utils/converters/fan-mode.js";
 import { Temperature } from "../../../utils/converters/temperature.js";
 import type { FeatureSelection } from "../../../utils/feature-selection.js";
 import { testBit } from "../../../utils/test-bit.js";
+import { trimToLength } from "../../../utils/trim-to-length.js";
 import { BasicInformationServer } from "../../behaviors/basic-information-server.js";
 import { HaElectricalEnergyMeasurementServer } from "../../behaviors/electrical-energy-measurement-server.js";
 import { HaElectricalPowerMeasurementServer } from "../../behaviors/electrical-power-measurement-server.js";
@@ -284,9 +285,7 @@ export class ComposedAirPurifierEndpoint extends Endpoint {
 
     if (config.areaName) {
       const truncatedName =
-        config.areaName.length > 16
-          ? config.areaName.substring(0, 16)
-          : config.areaName;
+        trimToLength(config.areaName, 16, "") ?? config.areaName;
       parentType = parentType.with(
         FixedLabelServer.set({
           labelList: [{ label: "room", value: truncatedName }],
