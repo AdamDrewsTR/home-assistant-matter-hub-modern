@@ -52,9 +52,9 @@ export class BasicInformationServer extends Base {
         : undefined;
     const serialNumberSuffix =
       this.env.get(BridgeDataProvider).serialNumberSuffix;
-    // Reserve room for the suffix so it survives the 32-char cap; otherwise
+    // Reserve room for the suffix so it survives the 32-byte cap; otherwise
     // appending and then trimming chops the suffix off (#330).
-    const maxRawLen = 32 - (serialNumberSuffix?.length ?? 0);
+    const maxRawLen = 32 - Buffer.byteLength(serialNumberSuffix ?? "");
     const registrySerial = featureFlags?.useHaRegistrySerial
       ? ellipse(maxRawLen, device?.serial_number)
       : undefined;

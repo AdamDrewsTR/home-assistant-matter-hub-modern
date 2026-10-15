@@ -132,8 +132,8 @@ export class ServerModeServerNode extends ServerNode {
         ? (trimToLength(sanitizeMatterString(nodeLabel ?? ""), 32, "...") ??
           undefined)
         : undefined;
-    // Reserve room for the suffix so it survives the 32-char cap (#330).
-    const maxRawLen = 32 - (this.serialNumberSuffix?.length ?? 0);
+    // Reserve room for the suffix so it survives the 32-byte cap (#330).
+    const maxRawLen = 32 - Buffer.byteLength(this.serialNumberSuffix ?? "");
     const registrySerial = this.featureFlags?.useHaRegistrySerial
       ? trimToLength(device?.serial_number, maxRawLen, "...")
       : undefined;

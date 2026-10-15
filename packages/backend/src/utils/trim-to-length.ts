@@ -1,3 +1,4 @@
+// Matter string limits count UTF-8 bytes, so CJK names must be cut by bytes (#518)
 export function trimToLength(
   value: string | number | null | undefined,
   maxLength: number,
@@ -7,8 +8,15 @@ export function trimToLength(
   if (!stringValue?.trim().length) {
     return undefined;
   }
-  if (stringValue.length <= maxLength) {
+  if (Buffer.byteLength(stringValue) <= maxLength) {
     return stringValue;
   }
-  return stringValue.substring(0, maxLength - suffix.length) + suffix;
+  let room = maxLength - Buffer.byteLength(suffix);
+  let trimmed = "";
+  for (const char of stringValue) {
+    room -= Buffer.byteLength(char);
+    if (room < 0) break;
+    trimmed += char;
+  }
+  return trimmed + suffix;
 }
