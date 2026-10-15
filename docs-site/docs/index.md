@@ -378,7 +378,14 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.937)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.939)</strong></summary>
+
+**v2.1.0-alpha.939:**
+- 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+
+**v2.1.0-alpha.938:**
+- 🔤 **Device names fit the Matter byte limits**: names, product, vendor and version strings are cut by bytes, not characters. A 32 character Chinese name used to go out as up to 96 bytes where Matter allows 32, the likely reason Aqara hubs hang on "registering device" ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+- 📝 **Protocol log level in the alpha add-on**: new `protocol_log_level` option for the matter.js packet logs, only needed when you are asked for a protocol log
 
 **v2.1.0-alpha.937:**
 - 🎙️ **Cameras carry the Matter Audio feature**: live view keeps its sound, and the camera now answers audio stream requests the way the spec asks. SmartThings may show a microphone mute; muting stops the audio
