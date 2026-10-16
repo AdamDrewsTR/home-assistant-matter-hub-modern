@@ -113,13 +113,13 @@ Mapped to **DoorLock** with PIN code support where available.
 **Feature Flags:**
 - **PIN Credentials** - Configure PIN codes via Entity Mapping UI
 - **Lock without PIN** - Locking is always allowed, only unlock requires PIN
-- **Unlatch (Unbolting)** - Automatically enabled when HA lock supports `OPEN` feature. Maps to `lock.open` action. Apple Home shows an "Unlatch" button.
+- **Unlatch (Unbolting)** - Automatically enabled when HA lock supports `OPEN` feature. Maps to `lock.open` action. Apple Home has no Unlatch button, its Unlock opens the latch.
 
 **Controller Notes:**
 - PIN code entry may not be supported by all controllers
 - Some controllers may require additional confirmation for unlock
 - Google Home has disabled voice unlock for Matter locks (Google policy)
-- Apple Home shows an "Unlatch" button when the lock supports the Unbolting feature
+- Apple Home shows no Unlatch button. On a lock with Unbolting, its Unlock pulls the latch (#514)
 
 See [Lock Guide](./devices/lock.md) for PIN credentials, unlatch setup, and troubleshooting.
 

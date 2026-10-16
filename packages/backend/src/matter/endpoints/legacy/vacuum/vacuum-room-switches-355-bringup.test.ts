@@ -795,3 +795,80 @@ describe("vacuum room switches (#355)", () => {
     await delay(1200);
   });
 });
+
+// #516: Google Home shows run modes as bare numbers, so room switches are the
+// way to give it named rooms. HA area mapping (CLEAN_AREA) must feed them too.
+describe("vacuum room switches with CLEAN_AREA rooms (#516)", () => {
+  it("names the switches after the HA areas and cleans that area", async () => {
+    const ROCKY = "vacuum.rocky";
+    const rooms = ["Woonkamer", "Keuken", "Hal"].map((name, i) => ({
+      areaId: i + 1,
+      haAreaId: `area_${i}`,
+      name,
+    }));
+    const resolve = vi
+      .spyOn(BridgeRegistry.prototype, "resolveCleanAreaRooms")
+      .mockResolvedValue(rooms);
+    const ha: FakeHa = {
+      entities: {},
+      states: {},
+      devices: {},
+      areas: new Map(),
+      labels: [],
+    };
+    // device_id puts the vacuum on the auto-detection path that resolves
+    // the CLEAN_AREA mapping.
+    ha.entities[ROCKY] = { entity_id: ROCKY, device_id: "rocky-dev" };
+    ha.devices["rocky-dev"] = { id: "rocky-dev", name: "Rocky" };
+    ha.states[ROCKY] = {
+      entity_id: ROCKY,
+      state: "docked",
+      attributes: {
+        friendly_name: "Rocky",
+        supported_features: 30524, // includes CLEAN_AREA
+        fan_speed_list: ["quiet", "balanced", "turbo", "max", "gentle"],
+        fan_speed: "balanced",
+      },
+      context: { id: "ctx" },
+      last_changed: "2026-01-01T00:00:00",
+      last_updated: "2026-01-01T00:00:00",
+    };
+    const mapping = new FakeMappingStorage();
+    mapping.put("bridge-355", { entityId: ROCKY, vacuumRoomSwitches: true });
+    try {
+      const manager = await buildManager(ha, mapping);
+      await manager.refreshDevices();
+      expect(resolve).toHaveBeenCalled();
+
+      const switches = switchEndpoints(manager);
+      const names: string[] = [];
+      for (const sw of switches) {
+        await sw.construction.ready;
+        await sw.act((agent) => {
+          names.push(
+            // biome-ignore lint/suspicious/noExplicitAny: read basic info state
+            (agent as any).bridgedDeviceBasicInformation.state.nodeLabel,
+          );
+        });
+      }
+      expect(names.sort()).toEqual(["Hal", "Keuken", "Woonkamer"]);
+
+      const keuken = switches.find((s) => s.areaId === 2);
+      expect(keuken).toBeDefined();
+      await keuken?.act((agent) => {
+        // biome-ignore lint/suspicious/noExplicitAny: drive the cluster
+        (agent as any).onOff.on();
+      });
+      expect(calls).toEqual([
+        {
+          action: "vacuum.clean_area",
+          data: { cleaning_area_id: ["area_1"] },
+        },
+      ]);
+      // Drain the momentary auto-reset timer before teardown.
+      await delay(1200);
+    } finally {
+      resolve.mockRestore();
+    }
+  });
+});

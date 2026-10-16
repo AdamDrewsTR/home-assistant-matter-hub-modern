@@ -969,7 +969,7 @@ export function LockServerWithPin(config: LockServerConfig) {
 /**
  * DoorLock server with PIN + Unbolting, for HA locks with the OPEN feature.
  * Unlock pulls the latch (lock.open), unbolt just retracts the bolt
- * (lock.unlock). Apple Home shows an "Unlatch" button when this is present.
+ * (lock.unlock). Apple Home only sends unlock, so it always unlatches (#514).
  */
 const PinCredentialUnboltBase = Base.with(
   "User",
@@ -1245,7 +1245,6 @@ namespace LockServerWithPinAndUnboltBase {
 /**
  * Creates a LockServer with PIN credential + Unbolting support.
  * Used when the HA lock entity supports the OPEN feature (unlatch).
- * Apple Home shows an "Unlatch" button when this is enabled.
  */
 export function LockServerWithPinAndUnbolt(config: LockServerConfig) {
   return LockServerWithPinAndUnboltBase.set({ config });

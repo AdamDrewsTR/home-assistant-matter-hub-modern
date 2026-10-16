@@ -53,7 +53,7 @@ const LockWithBatteryDeviceType = DoorLockDevice.with(
 );
 
 // Lock with unlatch (Unbolting feature) - for locks supporting HA's OPEN feature
-// Apple Home shows an "Unlatch" button when this is present
+// Apple Home has no unlatch button, its unlock pulls the latch (#514)
 const LockWithUnlatchDeviceType = DoorLockDevice.with(
   BasicInformationServer,
   IdentifyServer,
