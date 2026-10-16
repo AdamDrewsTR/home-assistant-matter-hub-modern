@@ -7,7 +7,7 @@ Home Assistant `lock` entities are mapped to Matter **DoorLock** devices with PI
 - **Lock**, Always allowed, no PIN required
 - **Unlock**, Requires PIN if credentials are configured
 - **Unlock with timeout**, Unlocks through Home Assistant like Unlock and locks again when the timeout runs out
-- **Unlatch / Unbolt**, Available when the HA entity supports the `OPEN` feature. Unlatch (unlock) maps to `lock.open`, unbolt maps to `lock.unlock`. Apple Home shows an "Unlatch" button.
+- **Unlatch / Unbolt**, Available when the HA entity supports the `OPEN` feature. Unlatch (unlock) maps to `lock.open`, unbolt maps to `lock.unlock`. Apple Home has no Unlatch button, its Unlock opens the latch.
 
 ## State Mapping
 
@@ -65,19 +65,21 @@ The physical program runs before the stored credential changes: a code the lock 
 Since v2.0.25, the Unbolting feature is automatically enabled when your HA lock entity supports the `OPEN` feature (reported in `supported_features`).
 
 When enabled:
-- Apple Home shows an "Unlatch" button alongside Lock/Unlock
 - Unlatch (unlock) calls `lock.open`; unbolt (Google's "open door when unlocking" off) calls `lock.unlock`
+- Apple Home has no Unlatch button, only Lock and Unlock ([#514](https://github.com/RiDDiX/home-assistant-matter-hub/issues/514)). Apple only knows the plain unlock command, and on a lock with Unbolting that command pulls the latch, so Unlock in Apple Home calls `lock.open`
 - Useful for door openers, electric strikes, and motorized locks with separate unlatch capability
 
 ## Compatibility
 
 | Controller | Lock | Unlock | PIN Entry | Unlatch |
 |------------|------|--------|-----------|---------|
-| Apple Home | ✅ | ✅ | ✅ | ✅ |
-| Google Home | ✅ | ⚠️ | ⚠️ | ❌ |
+| Apple Home | ✅ | ✅ | ✅ | ⚠️ |
+| Google Home | ✅ | ⚠️ | ⚠️ | ✅ |
 | Amazon Alexa | ✅ | ✅ | ⚠️ | ❌ |
 
-> **Google Home** has disabled voice unlock for Matter locks (Google policy). You can still unlock via the Google Home app.
+> **Apple Home** shows no Unlatch button. On a lock with `OPEN`, Unlock is the unlatch.
+>
+> **Google Home** has disabled voice unlock for Matter locks (Google policy). You can still unlock via the Google Home app. Its "Open door when unlocking" setting picks unlatch or unbolt ([#397](https://github.com/RiDDiX/home-assistant-matter-hub/issues/397)).
 >
 > **PIN entry** support varies by controller. Apple Home has the best PIN code support.
 
@@ -89,7 +91,9 @@ When enabled:
 2. Try unlocking via the controller app (not voice) to see if a PIN prompt appears
 3. Google Home blocks voice unlock for Matter locks by policy
 
-### Unlatch button not showing in Apple Home
+### No Unlatch button in Apple Home
+
+Apple Home has no Unlatch button for Matter locks, whatever the bridge advertises ([#514](https://github.com/RiDDiX/home-assistant-matter-hub/issues/514)). On a lock with `OPEN`, Unlock in Apple Home already pulls the latch (`lock.open`). If the door does not open:
 
 1. Verify your HA lock entity supports the `OPEN` feature (check `supported_features` in Developer Tools → States)
 2. Remove and re-add the device in Apple Home (device capabilities changed)

@@ -285,6 +285,10 @@ Apple Home uses the Matter 1.4 **Service Area** cluster for room selection. This
 
 Each room is also added as a run mode named after the room, e.g. "Kitchen", "Living Room". Picking one starts a clean of that room only.
 
+Google Home lists run and clean modes by their number (0, 1, 101, ...), not by name, even for the fixed Idle and Cleaning modes ([#516](https://github.com/RiDDiX/home-assistant-matter-hub/issues/516)). HAMH sends the names, the Google Home app does not show them. Picking a number still runs that mode: 101 and up are the rooms in alphabetical order.
+
+For rooms with names in Google Home, turn on **Expose one momentary switch per area** in the vacuum's entity mapping (bridge mode only). Every room then shows up as its own switch named after the room, and turning it on cleans that room. Rename a switch in Google Home if its name clashes with a Google room name in voice commands.
+
 Alexa has no room picker for Matter vacuums. Amazon lists only RVC Run Mode for robot vacuums ([Alexa Supported Matter Device Categories](https://developer.amazon.com/en-US/docs/alexa/smarthome/supported-matter-device-categories.html)), not Service Area, so rooms show up in Alexa only as run modes.
 
 Apple Home can trip over these modes. Pick all rooms and press start, and it may send one room mode, so only that room gets cleaned ([#367](https://github.com/RiDDiX/home-assistant-matter-hub/issues/367), [#511](https://github.com/RiDDiX/home-assistant-matter-hub/issues/511)). If you use the vacuum only from Apple Home, turn on **Don't expose rooms as per-room cleaning modes** in the entity mapping. Rooms then come only from the Service Area picker. Leave it off when Alexa or Google Home start rooms through the modes.
