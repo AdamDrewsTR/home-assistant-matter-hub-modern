@@ -38,7 +38,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.939 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.940 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -378,7 +378,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.939)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.940)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.940:**
+- 🌀 **Reversed fans report Reverse**: HAMH read a fan attribute Home Assistant never sets, so every fan with a direction showed Forward. The controller now sees the direction HA shows ([#515](https://github.com/RiDDiX/home-assistant-matter-hub/issues/515))
 
 **v2.1.0-alpha.939:**
 - 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))

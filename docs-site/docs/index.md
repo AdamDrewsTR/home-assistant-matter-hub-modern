@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.939)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.940)</strong></summary>
+
+**v2.1.0-alpha.940:**
+- 🌀 **Reversed fans report Reverse**: HAMH read a fan attribute Home Assistant never sets, so every fan with a direction showed Forward. The controller now sees the direction HA shows ([#515](https://github.com/RiDDiX/home-assistant-matter-hub/issues/515))
 
 **v2.1.0-alpha.939:**
 - 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
