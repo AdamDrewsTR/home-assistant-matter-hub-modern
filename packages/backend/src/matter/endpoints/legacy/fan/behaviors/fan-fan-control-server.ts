@@ -55,9 +55,9 @@ export const fanControlConfig: FanControlServerConfig = {
     state.state === "off" ? 0 : attributes(state).percentage,
   getStepSize: (state) => attributes(state).percentage_step,
   getAirflowDirection: (state) =>
-    attributes(state).current_direction === FanDeviceDirection.FORWARD
+    attributes(state).direction === FanDeviceDirection.FORWARD
       ? FanControl.AirflowDirection.Forward
-      : attributes(state).current_direction === FanDeviceDirection.REVERSE
+      : attributes(state).direction === FanDeviceDirection.REVERSE
         ? FanControl.AirflowDirection.Reverse
         : FanControl.AirflowDirection.Forward,
   isInAutoMode: (state) =>
