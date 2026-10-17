@@ -39,7 +39,7 @@ of port forwarding etc.
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
 | **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.940 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Alpha** | `alpha` | v2.1.0-alpha.941 | Ahead of Stable, carries the additions listed under Alpha Features |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
@@ -379,7 +379,10 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.940)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.941)</strong> - Click to expand</summary>
+
+**v2.1.0-alpha.941:**
+- 🧵 **matter.js 0.18 nightly from 2026-10-17**: the build the matter.js team calls final for 0.18. With an mDNS network interface set, IPv4 announcements now go out on that interface too, not on the default route. Keep-alive reports now ask the controller for an answer, like other Matter devices do
 
 **v2.1.0-alpha.940:**
 - 🌀 **Reversed fans report Reverse**: HAMH read a fan attribute Home Assistant never sets, so every fan with a direction showed Forward. The controller now sees the direction HA shows ([#515](https://github.com/RiDDiX/home-assistant-matter-hub/issues/515))
