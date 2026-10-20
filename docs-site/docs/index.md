@@ -378,7 +378,10 @@ Home, ...) are not placed in the same network segment. Please make sure to revie
 </details>
 
 <details>
-<summary><strong>🧪 Alpha (v2.1.0-alpha.941)</strong></summary>
+<summary><strong>🧪 Alpha (v2.1.0-alpha.942)</strong></summary>
+
+**v2.1.0-alpha.942:**
+- 🧵 **matter.js 0.18.0**: the final 0.18 release replaces the 2026-10-17 nightly. Bridges with cameras (Matter over TCP) now keep every message within the size the controller announced
 
 **v2.1.0-alpha.941:**
 - 🧵 **matter.js 0.18 nightly from 2026-10-17**: the build the matter.js team calls final for 0.18. With an mDNS network interface set, IPv4 announcements now go out on that interface too, not on the default route. Keep-alive reports now ask the controller for an answer, like other Matter devices do
