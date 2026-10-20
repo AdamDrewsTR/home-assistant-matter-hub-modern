@@ -11,6 +11,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/RiDDiX/home-assistant-matter-hub)](https://github.com/RiDDiX/home-assistant-matter-hub/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/RiDDiX/home-assistant-matter-hub)](https://github.com/RiDDiX/home-assistant-matter-hub/stargazers)
 [![License](https://img.shields.io/github/license/RiDDiX/home-assistant-matter-hub)](LICENSE)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/RiDDiX/badge.svg)](https://hub.xerj.org/contributors/RiDDiX.html)
 
 [📖 Documentation](https://riddix.github.io/home-assistant-matter-hub) • [� Discord](https://discord.gg/Kubv7sSGyW) • [�🐛 Report Bug](https://github.com/RiDDiX/home-assistant-matter-hub/issues/new?labels=bug) • [💡 Request Feature](https://github.com/RiDDiX/home-assistant-matter-hub/issues/new?labels=enhancement)
 
