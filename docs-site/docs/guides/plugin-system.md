@@ -250,7 +250,7 @@ Use Matter.js behavior key names as cluster IDs. Common ones:
 | `doorLock` | Lock state |
 
 :::note matter.js 0.18
-Since v2.1.0-alpha.930 the bridge runs matter.js 0.18. It checks initial attributes more strictly, so a value outside its spec range keeps the device from mounting, and some clusters select fewer features by default (for example `doorLock`). After updating, check that your devices still show up in the bridge's device list.
+Since v2.0.59 (v2.1.0-alpha.930) the bridge runs matter.js 0.18. It checks initial attributes more strictly, so a value outside its spec range keeps the device from mounting, and some clusters select fewer features by default (for example `doorLock`). After updating, check that your devices still show up in the bridge's device list.
 :::
 
 ### Handling Controller Commands

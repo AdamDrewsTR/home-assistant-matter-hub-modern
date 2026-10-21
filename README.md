@@ -38,14 +38,14 @@ of port forwarding etc.
 
 | Channel | Branch | Current Version | Description |
 |---------|--------|-----------------|-------------|
-| **Stable** | `main` | v2.0.58 | Production-ready, recommended for most users |
-| **Alpha** | `alpha` | v2.1.0-alpha.942 | Ahead of Stable, carries the additions listed under Alpha Features |
+| **Stable** | `main` | v2.0.59 | Production-ready, recommended for most users |
+| **Alpha** | `alpha` | v2.1.0-alpha.x | Currently level with Stable; next pre-release lands here first |
 | **Testing** | `testing` | v4.1.0-testing.x | ⚠️ **Highly unstable!** Experimental features, may break |
 
 ### Which version should I use?
 
 - **Most users**: Use **Stable** (`main` branch) - thoroughly tested
-- **Early adopters**: Use **Alpha** (`alpha` branch) - gets every fix and feature first, see Alpha Features below
+- **Early adopters**: Use **Alpha** (`alpha` branch) - currently level with Stable until the next pre-release lands
 - **Developers/Testers**: Use **Testing** (`testing` branch) - bleeding edge, expect breakage
 
 ### Upgrading from 2.0.46
@@ -62,9 +62,50 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 ## 🎉 What's New
 
 <details>
-<summary><strong>📦 Stable Features (v2.0.58)</strong> - Click to expand</summary>
+<summary><strong>📦 Stable Features (v2.0.59)</strong> - Click to expand</summary>
 
-**New in v2.0.58:**
+**New in v2.0.59:**
+- 📡 **Clearer mDNS global IPv6 warning**: the startup log now says you can ignore it when devices work, and names `mdns_strip_global_ipv6` for the add-on and `--mdns-strip-global-ipv6` for a container ([#392](https://github.com/RiDDiX/home-assistant-matter-hub/discussions/392))
+- ⚙️ **Failed label queries keep the last labels**: a failed Home Assistant label query no longer empties the label list, and before that a bridge filtering by label name could unmount its devices until the next refresh ([#500](https://github.com/RiDDiX/home-assistant-matter-hub/issues/500))
+- 📡 **False mDNS re-announcement log is gone**: the log line "Triggered mDNS re-announcement after session cleanup" is gone, nothing was sent at that point ([#500](https://github.com/RiDDiX/home-assistant-matter-hub/issues/500), [#485](https://github.com/RiDDiX/home-assistant-matter-hub/issues/485))
+- ⚙️ **Device list changes are one log line**: the log now has one line 'Device list changed: N removed, M added, K mounted' whenever a bridge changes its set of devices, with the added ones named and the bridge id in the logger name, so a log or diagnostic export shows whether the bridge itself changed what a controller sees ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
+- ⚙️ **Session cleanup no longer quotes a false 60s gap**: the session cleanup lines no longer say 'no subscriptions for 60s', because that number was the check interval and not the time without subscriptions ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
+- 🗺️ **Vacuum custom areas can carry a map and a floor**: custom service areas of a vacuum can carry a map name and a floor number, areas sharing a map name show up as one Matter map, and the same room name can sit on two maps ([#506](https://github.com/RiDDiX/home-assistant-matter-hub/issues/506))
+- 📷 **Camera live view can work with SmartThings**: four bugs stopped it every time, SmartThings' stream setup was rejected, every offer failed, the bridge offered VP8 instead of H.264 and answered too late. Tested end to end with a simulated SmartThings controller, a test on real hardware is still missing ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
+- 📷 **Camera errors from Home Assistant are readable**: when HA refuses a live view request the log shows its error instead of `[object Object]`, and camera ids HA can't accept (like `camera.rtsp-lq`) are skipped at startup with a warning ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
+- 📷 **High resolution camera streams get through**: a 1440p keyframe overflowed the bridge's UDP receive buffer, so the controller never got a whole picture. The bridge now asks for 4 MB, which HAOS allows ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
+- 🔒 **Locks without a keypad can skip PIN codes**: the new **Lock has no keypad** switch in a lock's entity mapping exposes it without PIN codes, so controllers offer no access code setup. Other locks keep their PIN support ([#418](https://github.com/RiDDiX/home-assistant-matter-hub/issues/418))
+- 🎨 **A color sent right after On is applied**: Alexa sends the color a moment after On, while Home Assistant still reports the light off. The color was held back and applied on the next turn-on instead. It now goes out with this one, and a color right after Off no longer switches the light back on ([#510](https://github.com/RiDDiX/home-assistant-matter-hub/issues/510))
+- 🌀 **Fans and air purifiers keep their speed range while unavailable**: Home Assistant drops the speed step while a fan is unavailable, so the bridge changed the fixed SpeedMax from 100 to 3 and back on every outage. It now keeps the last value ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
+- 🧹 **Apple Home can clean all rooms of a CLEAN_AREA vacuum**: Apple sends "all rooms" as an empty selection and then starts with one room's run mode, so only that room got cleaned. The "Don't expose rooms as per-room cleaning modes" option in the entity mapping now also covers CLEAN_AREA rooms and rooms from the vacuum attributes, not only custom areas. Turn it on when only Apple Home starts the vacuum; Alexa and Google Home still need the room modes ([#511](https://github.com/RiDDiX/home-assistant-matter-hub/issues/511))
+- 🧹 **Vacuums with one cleaning mode get a second "Auto" mode**: Matter needs at least two cleaning modes, and matter.js 0.18 refuses a vacuum with only one. Picking "Auto" is refused and nothing is sent to Home Assistant. Apple Home shows it as "Automatic"
+- 🔌 **EV chargers list "Time of Use" next to Manual**: same rule for the EVSE mode list. Picking it is refused, Manual stays selected
+- 🪟 **Shutters with tilt become exterior venetian blinds**: Matter 1.6.1 allows the Shutter type only with lift or tilt, not both. A tilting `shutter` cover now reports TiltBlindLift with ExteriorVenetianBlind, so already paired ones may show a different blind type. Covers also set a valid product type before their first state arrives
+- 🔒 **Unlock with timeout reaches Home Assistant**: the command used to flip the lock state in the controller without calling Home Assistant. It now unlocks through Home Assistant like a normal unlock and locks again when the timeout runs out
+- 🔘 **Long press events end released**: a `long_press` without a following release sent the press twice and left the button held. It now sends press, long press and release once
+- 📺 **TVs without play or pause mount**: they failed to start because the playback cluster was left out
+- 💡 **Color lights list RemainingTime** and the **pump mapping mounts**, it never did before
+- 🧵 **matter.js 0.18.0 with Matter 1.6.1**: controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. With an mDNS network interface set, IPv4 announcements now go out on that interface too, not on the default route. Keep-alive reports ask the controller for an answer, like other Matter devices do, and bridges with cameras (Matter over TCP) keep every message within the size the controller announced. If something pairs or behaves differently than on v2.0.58, please open an issue with the diagnostic export
+- 🔇 **matter.js device type checks stay off at runtime**: 0.18 can check every endpoint against its device type and log a warning for each deviation at every start. HAMH turns that off, the endpoint shapes are covered by its tests
+- 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again
+- 🔁 **Session rotation is opt-in in server mode too**: server mode bridges no longer close controller sessions every 4 h. Set Session Rotation Max Age if you want it back. When HAMH closes a session itself, it closes its subscriptions first
+- 🔌 **EV chargers answer charging target commands**: SetTargets, GetTargets and ClearTargets are accepted and stored, nothing is sent to Home Assistant
+- 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start
+- 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as `set_cover_position` 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
+- 🔌 **SmartThings shows power and energy on metered plugs**: a switch, plug or light with a mapped power or energy entity now links its meter to the device the way SmartThings expects, so it shows watts and kWh instead of a plain on/off switch. After updating, remove the device in SmartThings and add it again, SmartThings only picks this when a device is added ([#513](https://github.com/RiDDiX/home-assistant-matter-hub/issues/513))
+- 🔌 **Plugs and switches advertise the Matter Lighting feature again**: Matter requires it on every plug type and on a cover shown as a light. Switches, input booleans, scripts, scenes, automations, buttons, remotes, sirens, on/off fans, select switches, vacuum room switches and alarm panels shown as a plug carry it now. Its timed and scene commands act like a plain on or off, so a controller can never turn something off later on its own. Paired controllers may need a re-discover to pick it up
+- 🔋 **Smoke/CO alarms and solar power report a power source**: alarms without a battery and solar power endpoints carry the mains power source Matter requires. Solar also lists voltage, current and exported energy, unknown unless mapped. A mapped battery still wins
+- ⚡ **EV chargers carry Device Energy Management**: report only, no forecast and no power adjustment, offline while the status entity is unavailable
+- 🔢 **Same type parts are numbered**: composed devices and server mode nodes give same type siblings a numbered tag, as Matter requires
+- 🎙️ **Cameras carry the Matter Audio feature**: live view keeps its sound, and the camera now answers audio stream requests the way the spec asks. SmartThings may show a microphone mute; muting stops the audio
+- 📷 **Camera sessions that could not be answered are dropped**: before, a failed live view stayed listed on the camera for good
+- 💡 **A timed on no longer turns lights off later on its own**: when a controller turns a light, or a switch or valve mapped as one, on for a while and then off by hand, the old timer used to fire later anyway. An off now ends it, as Matter requires
+- 🔤 **Device names fit the Matter byte limits**: names, product, vendor and version strings are cut by bytes, not characters. A 32 character Chinese name used to go out as up to 96 bytes where Matter allows 32, the likely reason Aqara hubs hang on "registering device" ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+- 📝 **Protocol log level in the add-on**: new `protocol_log_level` option for the matter.js packet logs, only needed when you are asked for a protocol log
+- 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
+- 🌀 **Reversed fans report Reverse**: HAMH read a fan attribute Home Assistant never sets, so every fan with a direction showed Forward. The controller now sees the direction HA shows ([#515](https://github.com/RiDDiX/home-assistant-matter-hub/issues/515))
+
+**Previously in v2.0.58:**
 - 🗂️ **Old backups get deleted again**: the automatic backup only runs while HAMH shuts down, and the add-on gets a few seconds to stop, so the backup could be cut off before it reached the cleanup. Every restart left one more half-written backup in the list. Old backups are now also cleaned up at startup, and a backup keeps a temporary name until it is complete, so a cut-off one never shows up ([#483](https://github.com/RiDDiX/home-assistant-matter-hub/issues/483))
 - 🛡️ **Backup settings are checked**: the settings endpoint only takes a keep count from 1 to 100, and a failed write (a full disk, for example) fails that backup instead of crashing the app. The Turkish, Portuguese (Brazil) and Traditional Chinese texts no longer promise a scheduled backup
 - 📖 **Docs**: the Alexa "never connects" entry drops the fresh bridge advice, a new bridge did not help in [#478](https://github.com/RiDDiX/home-assistant-matter-hub/issues/478), and says how to tell from the log whether the Echo reached the bridge
@@ -379,99 +420,9 @@ Re-assign the affected devices to their rooms after they reconnect. See the [doc
 </details>
 
 <details>
-<summary><strong>🧪 Alpha Features (v2.1.0-alpha.942)</strong> - Click to expand</summary>
+<summary><strong>🧪 Alpha Features (v2.1.0-alpha.x)</strong> - Click to expand</summary>
 
-**v2.1.0-alpha.942:**
-- 🧵 **matter.js 0.18.0**: the final 0.18 release replaces the 2026-10-17 nightly. Bridges with cameras (Matter over TCP) now keep every message within the size the controller announced
-
-**v2.1.0-alpha.941:**
-- 🧵 **matter.js 0.18 nightly from 2026-10-17**: the build the matter.js team calls final for 0.18. With an mDNS network interface set, IPv4 announcements now go out on that interface too, not on the default route. Keep-alive reports now ask the controller for an answer, like other Matter devices do
-
-**v2.1.0-alpha.940:**
-- 🌀 **Reversed fans report Reverse**: HAMH read a fan attribute Home Assistant never sets, so every fan with a direction showed Forward. The controller now sees the direction HA shows ([#515](https://github.com/RiDDiX/home-assistant-matter-hub/issues/515))
-
-**v2.1.0-alpha.939:**
-- 🏷️ **Room labels fit the Matter byte limit**: the room name on each device is cut to 16 bytes instead of 16 characters, so Chinese, Japanese or Korean room names no longer run over ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
-
-**v2.1.0-alpha.938:**
-- 🔤 **Device names fit the Matter byte limits**: names, product, vendor and version strings are cut by bytes, not characters. A 32 character Chinese name used to go out as up to 96 bytes where Matter allows 32, the likely reason Aqara hubs hang on "registering device" ([#518](https://github.com/RiDDiX/home-assistant-matter-hub/issues/518))
-- 📝 **Protocol log level in the alpha add-on**: new `protocol_log_level` option for the matter.js packet logs, only needed when you are asked for a protocol log
-
-**v2.1.0-alpha.937:**
-- 🎙️ **Cameras carry the Matter Audio feature**: live view keeps its sound, and the camera now answers audio stream requests the way the spec asks. SmartThings may show a microphone mute; muting stops the audio
-- 📷 **Camera sessions that could not be answered are dropped**: before, a failed live view stayed listed on the camera for good
-- 💡 **A timed on no longer turns lights off later on its own**: when a controller turns a light, or a switch or valve mapped as one, on for a while and then off by hand, the old timer used to fire later anyway. An off now ends it, as Matter requires
-
-**v2.1.0-alpha.936:**
-- 🧵 **matter.js 0.18 nightly from 2026-10-14**: newer build of the coming 0.18 release. It now counts the power source, electrical sensor and energy management types an endpoint lists itself, so the fixes from alpha.935 leave no device type warnings behind
-
-**v2.1.0-alpha.935:**
-- 🔌 **Plugs and switches advertise the Matter Lighting feature again**: Matter requires it on every plug type and on a cover shown as a light. Switches, input booleans, scripts, scenes, automations, buttons, remotes, sirens, on/off fans, select switches, vacuum room switches and alarm panels shown as a plug carry it now. Its timed and scene commands act like a plain on or off, so a controller can never turn something off later on its own. Paired controllers may need a re-discover to pick it up
-- 🔋 **Smoke/CO alarms and solar power report a power source**: alarms without a battery and solar power endpoints carry the mains power source Matter requires. Solar also lists voltage, current and exported energy, unknown unless mapped. A mapped battery still wins
-- ⚡ **EV chargers carry Device Energy Management**: report only, no forecast and no power adjustment, offline while the status entity is unavailable
-- 🔢 **Same type parts are numbered**: composed devices and server mode nodes give same type siblings a numbered tag, as Matter requires
-
-**v2.1.0-alpha.934:**
-- 🔌 **SmartThings shows power and energy on metered plugs**: a switch, plug or light with a mapped power or energy entity now links its meter to the device the way SmartThings expects, so it shows watts and kWh instead of a plain on/off switch. After updating, remove the device in SmartThings and add it again, SmartThings only picks this when a device is added ([#513](https://github.com/RiDDiX/home-assistant-matter-hub/issues/513))
-
-**v2.1.0-alpha.933:**
-- 🪟 **Option to send cover open/close as a position**: some cover integrations, like Cover Time Based, stop when they get open or close while the cover is moving, and only reverse on a position. Turn on **Send open/close as position** in the entity mapping and open and close go out as `set_cover_position` 100 and 0. Off by default, covers without a position keep open/close ([#512](https://github.com/RiDDiX/home-assistant-matter-hub/issues/512))
-
-**v2.1.0-alpha.932:**
-- 🧹 **Removed option cleaned from saved bridges**: a bridge saved with the old "Omit events in priming" option still listed it on the Diagnostics page and in the export. It is now dropped from storage on start
-
-**v2.1.0-alpha.931:**
-- 🧵 **No local matter.js patch any more**: HAMH now runs matter.js 0.18 unchanged. The "Omit events in priming" bridge option is gone, it was never confirmed to help Google. The last failed subscription update and "Giving up on subscription" are logged at INFO again
-- 🔁 **Session rotation is opt-in in server mode too**: server mode bridges no longer close controller sessions every 4 h. Set Session Rotation Max Age if you want it back. When HAMH closes a session itself, it closes its subscriptions first
-- 🔌 **EV chargers answer charging target commands**: SetTargets, GetTargets and ClearTargets are accepted and stored, nothing is sent to Home Assistant
-
-**v2.1.0-alpha.930:**
-- 🧵 **matter.js 0.18 RC (nightly 0.18.0-alpha.0-20261008)**: brings Matter 1.6.1. Controllers now see spec version 1.6.1, a Groupcast cluster on the bridge root and newer device type revisions. If something pairs or behaves differently than on alpha.929, please open an issue with the diagnostic export
-- 🔇 **matter.js device type checks stay off at runtime**: 0.18 can check every endpoint against its device type and log a warning for each deviation at every start. HAMH turns that off, the endpoint shapes are covered by its tests
-
-**v2.1.0-alpha.929:**
-- 🧹 **Vacuums with one cleaning mode get a second "Auto" mode**: Matter needs at least two cleaning modes, and the coming matter.js 0.18 refuses a vacuum with only one. Picking "Auto" is refused and nothing is sent to Home Assistant. Apple Home shows it as "Automatic"
-- 🔌 **EV chargers list "Time of Use" next to Manual**: same rule for the EVSE mode list. Picking it is refused, Manual stays selected
-- 🪟 **Shutters with tilt become exterior venetian blinds**: Matter 1.6.1 allows the Shutter type only with lift or tilt, not both. A tilting `shutter` cover now reports TiltBlindLift with ExteriorVenetianBlind, so already paired ones may show a different blind type. Covers also set a valid product type before their first state arrives
-- 🔒 **Unlock with timeout reaches Home Assistant**: the command used to flip the lock state in the controller without calling Home Assistant. It now unlocks through Home Assistant like a normal unlock and locks again when the timeout runs out
-- 🔘 **Long press events end released**: a `long_press` without a following release sent the press twice and left the button held. It now sends press, long press and release once
-- 📺 **TVs without play or pause mount**: they failed to start because the playback cluster was left out
-- 💡 **Color lights list RemainingTime** and the **pump mapping mounts**, it never did before
-
-**v2.1.0-alpha.928:**
-- 🧹 **Apple Home can clean all rooms of a CLEAN_AREA vacuum**: Apple sends "all rooms" as an empty selection and then starts with one room's run mode, so only that room got cleaned. The "Don't expose rooms as per-room cleaning modes" option in the entity mapping now also covers CLEAN_AREA rooms and rooms from the vacuum attributes, not only custom areas. Turn it on when only Apple Home starts the vacuum; Alexa and Google Home still need the room modes ([#511](https://github.com/RiDDiX/home-assistant-matter-hub/issues/511))
-
-**v2.1.0-alpha.927:**
-- 🌀 **Fans and air purifiers keep their speed range while unavailable**: Home Assistant drops the speed step while a fan is unavailable, so the bridge changed the fixed SpeedMax from 100 to 3 and back on every outage. It now keeps the last value ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
-
-**v2.1.0-alpha.926:**
-- 🎨 **A color sent right after On is applied**: Alexa sends the color a moment after On, while Home Assistant still reports the light off. The color was held back and applied on the next turn-on instead. It now goes out with this one, and a color right after Off no longer switches the light back on ([#510](https://github.com/RiDDiX/home-assistant-matter-hub/issues/510))
-
-**v2.1.0-alpha.925:**
-- 🔒 **Locks without a keypad can skip PIN codes**: the new **Lock has no keypad** switch in a lock's entity mapping exposes it without PIN codes, so controllers offer no access code setup. Other locks keep their PIN support ([#418](https://github.com/RiDDiX/home-assistant-matter-hub/issues/418))
-
-**v2.1.0-alpha.924:**
-- 📷 **High resolution camera streams get through**: a 1440p keyframe overflowed the bridge's UDP receive buffer, so the controller never got a whole picture. The bridge now asks for 4 MB, which HAOS allows ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
-
-**v2.1.0-alpha.923:**
-- 📷 **Camera errors from Home Assistant are readable**: when HA refuses a live view request the log shows its error instead of `[object Object]`, and camera ids HA can't accept (like `camera.rtsp-lq`) are skipped at startup with a warning ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
-
-**v2.1.0-alpha.922:**
-- 📷 **Camera live view can work with SmartThings**: four bugs stopped it every time, SmartThings' stream setup was rejected, every offer failed, the bridge offered VP8 instead of H.264 and answered too late. Tested end to end with a simulated SmartThings controller, a test on real hardware is still missing ([#373](https://github.com/RiDDiX/home-assistant-matter-hub/issues/373))
-
-**v2.1.0-alpha.921:**
-- 🗺️ **Vacuum custom areas can carry a map and a floor**: custom service areas of a vacuum can carry a map name and a floor number, areas sharing a map name show up as one Matter map, and the same room name can sit on two maps ([#506](https://github.com/RiDDiX/home-assistant-matter-hub/issues/506))
-
-**v2.1.0-alpha.920:**
-- ⚙️ **Device list changes are one log line**: the log now has one line 'Device list changed: N removed, M added, K mounted' whenever a bridge changes its set of devices, with the added ones named and the bridge id in the logger name, so a log or diagnostic export shows whether the bridge itself changed what a controller sees ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
-- ⚙️ **Session cleanup no longer quotes a false 60s gap**: the session cleanup lines no longer say 'no subscriptions for 60s', because that number was the check interval and not the time without subscriptions ([#505](https://github.com/RiDDiX/home-assistant-matter-hub/issues/505))
-
-**v2.1.0-alpha.919:**
-- ⚙️ **Failed label queries keep the last labels**: a failed Home Assistant label query no longer empties the label list, and before that a bridge filtering by label name could unmount its devices until the next refresh ([#500](https://github.com/RiDDiX/home-assistant-matter-hub/issues/500))
-- 📡 **False mDNS re-announcement log is gone**: the log line "Triggered mDNS re-announcement after session cleanup" is gone, nothing was sent at that point ([#500](https://github.com/RiDDiX/home-assistant-matter-hub/issues/500), [#485](https://github.com/RiDDiX/home-assistant-matter-hub/issues/485))
-
-**v2.1.0-alpha.918:**
-- 📡 **Clearer mDNS global IPv6 warning**: the startup log now says you can ignore it when devices work, and names `mdns_strip_global_ipv6` for the add-on and `--mdns-strip-global-ipv6` for a container ([#392](https://github.com/RiDDiX/home-assistant-matter-hub/discussions/392))
+**Alpha is currently level with Stable (v2.0.59).** All alpha work up to the latest pre-release has been promoted into v2.0.59. New alpha work continues from the next pre-release tag onward and will appear here as development progresses.
 
 </details>
 
