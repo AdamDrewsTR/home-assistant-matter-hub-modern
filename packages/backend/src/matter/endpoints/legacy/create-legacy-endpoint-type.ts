@@ -7,8 +7,12 @@ import type {
 import { Logger } from "@matter/general";
 import type { EndpointType } from "@matter/main";
 import { FixedLabelServer } from "@matter/main/behaviors";
+import { trimToLength } from "../../../utils/trim-to-length.js";
 import type { HomeAssistantEntityBehavior } from "../../behaviors/home-assistant-entity-behavior.js";
-import { DefaultPowerSourceServer } from "../../behaviors/power-source-server.js";
+import {
+  DefaultPowerSourceServer,
+  withoutWiredPowerSource,
+} from "../../behaviors/power-source-server.js";
 import { validateEndpointType } from "../validate-endpoint-type.js";
 import { AirPurifierEndpoint } from "./air-purifier/index.js";
 import {
@@ -137,7 +141,17 @@ export function createLegacyEndpointType(
       type = overrideFactory(ha);
       // Explicit device types skip the domain path that swaps in battery
       // variants, so attach a power source when a battery entity is mapped
-      // and the type does not already carry one (e.g. vacuum).
+      // and the type does not already carry one (e.g. vacuum). A wired
+      // default (smoke_co_alarm, solar_power) only stands in for no battery
+      // at all, so a battery entity or attribute drops it.
+      const attrs = entity.state.attributes as {
+        battery?: number;
+        battery_level?: number;
+      };
+      const batteryAttr = attrs.battery != null || attrs.battery_level != null;
+      if (type && (mapping.batteryEntity || batteryAttr)) {
+        type = withoutWiredPowerSource(type);
+      }
       if (type && mapping.batteryEntity && !hasPowerSource(type)) {
         type = addPowerSource(type);
       }
@@ -199,8 +213,7 @@ export function createLegacyEndpointType(
 function addFixedLabel(type: EndpointType, areaName: string): EndpointType {
   // Matter spec: LabelStruct label and value fields are max 16 bytes each.
   // Truncate area name to prevent validation failures.
-  const truncatedName =
-    areaName.length > 16 ? areaName.substring(0, 16) : areaName;
+  const truncatedName = trimToLength(areaName, 16, "") ?? areaName;
   const fixedLabel = FixedLabelServer.set({
     labelList: [{ label: "room", value: truncatedName }],
   });

@@ -122,13 +122,7 @@ interface AllBridgeFeatureFlags {
    * Default: false (disabled)
    */
   readonly fastSessionRecovery: boolean;
-  /**
-   * Omit stored events that break Google priming subscriptions (#424).
-   * Live events still work. Off-spec; opt in per bridge.
-   * Default: false (disabled)
-   */
-  readonly omitEventsInPriming: boolean;
-  /** Advertise Matter 1.5.1 instead of 1.6.0, pairing diagnostic for older Alexa stacks (#449). */
+  /** Advertise Matter 1.5.1 instead of 1.6.1, pairing diagnostic for older Alexa stacks (#449). */
   readonly advertiseSpecVersion151: boolean;
   /** Accept SetTcAcknowledgements instead of rejecting it, pairing experiment for Echo stalls (#449). */
   readonly supportTermsAndConditions: boolean;
@@ -217,7 +211,7 @@ export interface BridgeConfig {
    * matter sessions older than this many hours so iPhone clients
    * re-establish CASE and re-subscribe, which unsticks Apple Home
    * "Updating" tiles (#287). 0 disables. Range 0..168.
-   * Falls back to HAMH_MATTER_SESSION_MAX_AGE_HOURS, then 4.
+   * Falls back to HAMH_MATTER_SESSION_MAX_AGE_HOURS, then 0 (off).
    */
   readonly sessionMaxAgeHours?: number;
 }

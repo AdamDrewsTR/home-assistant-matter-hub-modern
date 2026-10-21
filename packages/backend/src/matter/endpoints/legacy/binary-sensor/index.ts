@@ -38,7 +38,9 @@ type CombinedType =
   | typeof MotionSensorType
   | typeof OccupancySensorType
   | typeof SmokeAlarmType
+  | typeof SmokeAlarmWithBatteryType
   | typeof CoAlarmType
+  | typeof CoAlarmWithBatteryType
   | typeof OnOffSensorType;
 
 const deviceClasses: Partial<Record<BinarySensorDeviceClass, CombinedType>> = {

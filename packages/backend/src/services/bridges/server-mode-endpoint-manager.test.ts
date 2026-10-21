@@ -38,6 +38,7 @@ function fakeEndpoint(
     entityId,
     mappedEntityIds: opts?.mappedEntityIds ?? [],
     type: { deviceType: opts?.deviceType ?? 0x10 },
+    behaviors: { supported: {}, inject: vi.fn() },
     delete: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
     updateStates: vi.fn().mockResolvedValue(undefined),
@@ -119,7 +120,7 @@ function makeHarness(
     deviceOf: vi.fn(() => undefined),
     // biome-ignore lint/suspicious/noExplicitAny: registry stub
     entity: vi.fn((id: string) => (opts?.entities as any)?.[id]),
-    initialState: vi.fn(() => undefined),
+    initialState: vi.fn((): object | undefined => ({ state: "on" })),
     mergeExternalStates: vi.fn(),
     batteryFingerprintFor: vi.fn(() => ""),
     forgetBatteryCacheForDevice: vi.fn(),
@@ -356,6 +357,230 @@ describe("ServerModeEndpointManager (#301)", () => {
     expect(h.serverNode.updateDeviceIdentity.mock.calls[0][0]).toBe(
       "light.primary",
     );
+  });
+
+  it("rebuilds a mounted switch with a TagList once a second one joins", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x010a,
+        }) as unknown as LegacyEndpoint,
+    );
+    const tagOf = (e: EntityEndpoint) =>
+      // biome-ignore lint/suspicious/noExplicitAny: injected descriptor type
+      (e.behaviors.inject as any).mock.calls[0]?.[0].defaults.tagList[0].tag;
+    const h = makeHarness(["switch.b"]);
+    await h.manager.refreshDevices();
+    const first = h.manager.devices[0];
+    expect(first.behaviors.inject).not.toHaveBeenCalled();
+
+    h.registry.entityIds = ["switch.b", "switch.a"];
+    h.registry.fullEntities["switch.a"] = { entity_id: "switch.a" };
+    await h.manager.refreshDevices();
+
+    // the untagged one closes (keeps its number) before a tagged sibling lands
+    expect(first.close).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(first.close).mock.invocationCallOrder[0]).toBeLessThan(
+      h.serverNode.addDevice.mock.invocationCallOrder[1],
+    );
+    const added = h.serverNode.addDevice.mock.calls
+      .slice(1)
+      .map((c) => c[0] as EntityEndpoint);
+    expect(added.map((e) => [e.entityId, tagOf(e)])).toEqual([
+      ["switch.a", 1],
+      ["switch.b", 2],
+    ]);
+
+    h.serverNode.addDevice.mockClear();
+    await h.manager.refreshDevices();
+    expect(h.serverNode.addDevice).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds for a tag on the id it is mounted under", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x010a,
+        }) as unknown as LegacyEndpoint,
+    );
+    legacyCreate.mockImplementationOnce(
+      async () =>
+        fakeEndpoint("switch.b", {
+          deviceType: 0x010a,
+          id: "switch_b_old",
+        }) as unknown as LegacyEndpoint,
+    );
+    const h = makeHarness(["switch.b"]);
+    await h.manager.refreshDevices();
+
+    h.registry.entityIds = ["switch.b", "switch.a"];
+    h.registry.fullEntities["switch.a"] = { entity_id: "switch.a" };
+    await h.manager.refreshDevices();
+
+    const rebuild = legacyCreate.mock.calls.filter((c) => c[1] === "switch.b");
+    expect(rebuild).toHaveLength(2);
+    expect(rebuild[1][5]).toBe("switch_b_old");
+  });
+
+  it("stores the fingerprint a tag rebuild actually built (#450)", async () => {
+    // the first build maps the battery, the tag rebuild misses it
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x0302,
+        }) as unknown as LegacyEndpoint,
+    );
+    legacyCreate.mockImplementationOnce(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x0302,
+          mappedEntityIds: ["sensor.bat"],
+        }) as unknown as LegacyEndpoint,
+    );
+    const h = makeHarness(["sensor.t_b"]);
+    h.registry.batteryFingerprintFor.mockImplementation((id: string) =>
+      id === "sensor.t_b" ? "sensor.bat" : "",
+    );
+    await h.manager.refreshDevices();
+
+    h.registry.entityIds = ["sensor.t_b", "sensor.t_a"];
+    h.registry.fullEntities["sensor.t_a"] = { entity_id: "sensor.t_a" };
+    await h.manager.refreshDevices();
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual([
+      "sensor.t_b",
+      "sensor.t_a",
+      "sensor.t_b",
+    ]);
+
+    // the battery it left out still gets its catch-up rebuild
+    legacyCreate.mockClear();
+    await h.manager.refreshDevices();
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual(["sensor.t_b"]);
+  });
+
+  it("leaves a held sibling alone when a new one would renumber it (#438)", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x010a,
+        }) as unknown as LegacyEndpoint,
+    );
+    const h = makeHarness(["switch.b"]);
+    await h.manager.refreshDevices();
+    const held = h.manager.devices[0];
+
+    // switch.b left HA and waits out the grace while switch.a joins
+    h.registry.entityIds = ["switch.a"];
+    delete h.registry.fullEntities["switch.b"];
+    h.registry.fullEntities["switch.a"] = { entity_id: "switch.a" };
+    legacyCreate.mockClear();
+    await h.manager.refreshDevices();
+
+    expect(held.close).not.toHaveBeenCalled();
+    expect(held.delete).not.toHaveBeenCalled();
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual(["switch.a"]);
+    expect(h.manager.devices).toContain(held);
+  });
+
+  it("numbers each device type on its own, a light change leaves the locks alone", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: (entityId as string).startsWith("lock.")
+            ? 0x000a
+            : 0x0100,
+        }) as unknown as LegacyEndpoint,
+    );
+    const tagOf = (e: EntityEndpoint) =>
+      // biome-ignore lint/suspicious/noExplicitAny: injected descriptor type
+      (e.behaviors.inject as any).mock.calls[0]?.[0].defaults.tagList[0].tag;
+    const h = makeHarness(["light.l_a", "light.l_b", "lock.k_a", "lock.k_b"]);
+    await h.manager.refreshDevices();
+    const locks = h.manager.devices.filter((e) =>
+      e.entityId.startsWith("lock"),
+    );
+    expect(locks.map(tagOf)).toEqual([1, 2]);
+
+    h.mappingStorage.getMapping.mockImplementation((_b: string, e: string) =>
+      e === "light.l_a" ? { disabled: true } : undefined,
+    );
+    legacyCreate.mockClear();
+    await h.manager.refreshDevices();
+
+    // only the light that lost its twin is rebuilt
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual(["light.l_b"]);
+    for (const lock of locks) expect(lock.close).not.toHaveBeenCalled();
+    expect(h.manager.devices).toEqual(expect.arrayContaining(locks));
+  });
+
+  it("keeps tracking a sibling it could not close for a tag rebuild", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x010a,
+        }) as unknown as LegacyEndpoint,
+    );
+    const h = makeHarness(["switch.b"]);
+    await h.manager.refreshDevices();
+    const first = h.manager.devices[0];
+    vi.mocked(first.close).mockRejectedValueOnce(new Error("busy"));
+
+    h.registry.entityIds = ["switch.b", "switch.a"];
+    h.registry.fullEntities["switch.a"] = { entity_id: "switch.a" };
+    await h.manager.refreshDevices();
+
+    // still mounted, so it is neither built twice nor dropped
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual([
+      "switch.b",
+      "switch.a",
+    ]);
+    expect(h.manager.devices).toContain(first);
+
+    // and the next refresh tries again
+    await h.manager.refreshDevices();
+    expect(legacyCreate.mock.calls.map((c) => c[1])).toEqual([
+      "switch.b",
+      "switch.a",
+      "switch.b",
+    ]);
+  });
+
+  it("leaves a sibling without an HA state mounted instead of rebuilding it", async () => {
+    legacyCreate.mockImplementation(
+      async (_registry, entityId) =>
+        fakeEndpoint(entityId as string, {
+          deviceType: 0x010a,
+        }) as unknown as LegacyEndpoint,
+    );
+    const h = makeHarness(["switch.b"]);
+    await h.manager.refreshDevices();
+    const first = h.manager.devices[0];
+
+    // still in the registry, but HA has no state for it right now
+    h.registry.initialState.mockImplementation((id: string) =>
+      id === "switch.b" ? undefined : { state: "on" },
+    );
+    h.registry.entityIds = ["switch.b", "switch.a"];
+    h.registry.fullEntities["switch.a"] = { entity_id: "switch.a" };
+    await h.manager.refreshDevices();
+
+    expect(first.close).not.toHaveBeenCalled();
+    expect(h.manager.devices).toContain(first);
+    expect(h.manager.failedEntities).toEqual([]);
+  });
+
+  it("retries a device whose mount failed on the next refresh", async () => {
+    const h = makeHarness(["light.one"]);
+    h.serverNode.addDevice.mockRejectedValueOnce(new Error("mount failed"));
+    await h.manager.refreshDevices();
+    expect(h.manager.failedEntities.map((f) => f.entityId)).toEqual([
+      "light.one",
+    ]);
+    expect(h.manager.devices).toEqual([]);
+
+    await h.manager.refreshDevices();
+    expect(h.serverNode.addDevice).toHaveBeenCalledTimes(2);
+    expect(h.manager.devices).toHaveLength(1);
   });
 
   it("caps the node and marks the surplus as failed", async () => {

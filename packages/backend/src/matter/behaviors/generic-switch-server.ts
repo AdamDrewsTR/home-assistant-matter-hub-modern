@@ -72,6 +72,11 @@ function isRepeatedEvent(endpoint: Endpoint, key: string): boolean {
   return false;
 }
 
+// HA reports a long press after the fact and often without a release, so the
+// whole sequence goes out at once and the switch ends at position 0. Endpoints
+// listed here already sent the release for their next long_release.
+const releasedLongPress = new WeakSet<Endpoint>();
+
 function isLongPress(lower: string): boolean {
   return (
     (lower.includes("long") && !lower.includes("release")) || lower === "hold"
@@ -120,7 +125,6 @@ function fireBridgeEvent(
 // biome-ignore lint/correctness/noUnusedVariables: Used via namespace below
 class HaGenericSwitchServerBase extends SimpleBase {
   declare state: HaGenericSwitchServerBase.State;
-  private inLongPress = false;
 
   override async initialize() {
     await super.initialize();
@@ -163,25 +167,18 @@ class HaGenericSwitchServerBase extends SimpleBase {
     const lower = eventType.toLowerCase();
 
     if (isLongPress(lower)) {
-      this.inLongPress = true;
-      this.state.currentPosition = 1;
-      this.events.initialPress.emit({ newPosition: 1 }, this.context);
-      this.events.longPress.emit({ newPosition: 1 }, this.context);
+      releasedLongPress.add(this.endpoint);
+      this.emitLongPress();
       fireBridgeEvent(this.agent, eventType, 1);
       return;
     }
 
     if (isLongRelease(lower)) {
-      if (!this.inLongPress) {
-        // Synthesize the missing InitialPress + LongPress when the preceding
-        // press_long was lost (e.g. coalesced by debounce).
-        this.state.currentPosition = 1;
-        this.events.initialPress.emit({ newPosition: 1 }, this.context);
-        this.events.longPress.emit({ newPosition: 1 }, this.context);
+      // The long press already sent its release. Only send the sequence when
+      // the press itself was lost (e.g. coalesced by debounce).
+      if (!releasedLongPress.delete(this.endpoint)) {
+        this.emitLongPress();
       }
-      this.inLongPress = false;
-      this.state.currentPosition = 0;
-      this.events.longRelease.emit({ previousPosition: 1 }, this.context);
       fireBridgeEvent(this.agent, eventType, 1);
       return;
     }
@@ -199,6 +196,14 @@ class HaGenericSwitchServerBase extends SimpleBase {
 
     fireBridgeEvent(this.agent, eventType, 1);
   }
+
+  private emitLongPress() {
+    this.state.currentPosition = 1;
+    this.events.initialPress.emit({ newPosition: 1 }, this.context);
+    this.events.longPress.emit({ newPosition: 1 }, this.context);
+    this.state.currentPosition = 0;
+    this.events.longRelease.emit({ previousPosition: 1 }, this.context);
+  }
 }
 
 namespace HaGenericSwitchServerBase {
@@ -208,7 +213,6 @@ namespace HaGenericSwitchServerBase {
 // biome-ignore lint/correctness/noUnusedVariables: Used via namespace below
 class HaGenericSwitchServerMultiBase extends FullBase {
   declare state: HaGenericSwitchServerMultiBase.State;
-  private inLongPress = false;
 
   override async initialize() {
     await super.initialize();
@@ -251,23 +255,16 @@ class HaGenericSwitchServerMultiBase extends FullBase {
     const lower = eventType.toLowerCase();
 
     if (isLongPress(lower)) {
-      this.inLongPress = true;
-      this.state.currentPosition = 1;
-      this.events.initialPress.emit({ newPosition: 1 }, this.context);
-      this.events.longPress.emit({ newPosition: 1 }, this.context);
+      releasedLongPress.add(this.endpoint);
+      this.emitLongPress();
       fireBridgeEvent(this.agent, eventType, 1);
       return;
     }
 
     if (isLongRelease(lower)) {
-      if (!this.inLongPress) {
-        this.state.currentPosition = 1;
-        this.events.initialPress.emit({ newPosition: 1 }, this.context);
-        this.events.longPress.emit({ newPosition: 1 }, this.context);
+      if (!releasedLongPress.delete(this.endpoint)) {
+        this.emitLongPress();
       }
-      this.inLongPress = false;
-      this.state.currentPosition = 0;
-      this.events.longRelease.emit({ previousPosition: 1 }, this.context);
       fireBridgeEvent(this.agent, eventType, 1);
       return;
     }
@@ -291,6 +288,14 @@ class HaGenericSwitchServerMultiBase extends FullBase {
     );
 
     fireBridgeEvent(this.agent, eventType, pressCount);
+  }
+
+  private emitLongPress() {
+    this.state.currentPosition = 1;
+    this.events.initialPress.emit({ newPosition: 1 }, this.context);
+    this.events.longPress.emit({ newPosition: 1 }, this.context);
+    this.state.currentPosition = 0;
+    this.events.longRelease.emit({ previousPosition: 1 }, this.context);
   }
 }
 

@@ -32,13 +32,15 @@ function createEntity(
 }
 
 describe("ButtonDevice OnOff conformance", () => {
-  it("does not advertise the OnOff Lighting feature (#182 Alexa conformance)", () => {
+  // OnOffPlugInUnit requires Lighting. The #182 reporter still saw the plug
+  // in Alexa's all lights group with lighting:false.
+  it("advertises the OnOff Lighting feature", () => {
     const endpointType = ButtonDevice({
       entity: createEntity("button.doorbell", "off"),
     } as never);
 
     // biome-ignore lint/suspicious/noExplicitAny: inspecting matter.js internals
     const onOff = (endpointType as any).behaviors.onOff;
-    expect(onOff.defaults.featureMap.lighting).toBe(false);
+    expect(onOff.defaults.featureMap.lighting).toBe(true);
   });
 });

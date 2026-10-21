@@ -41,6 +41,7 @@ export function createCameraEndpointType(
       supportedStreamUsages: [StreamUsage.LiveView],
       streamUsagePriorities: [StreamUsage.LiveView],
       allocatedVideoStreams: [],
+      allocatedAudioStreams: [],
       allocatedSnapshotStreams: [],
       maxConcurrentEncoders: 1,
       maxEncodedPixelRate: 3840 * 2160 * 30,
@@ -69,6 +70,22 @@ export function createCameraEndpointType(
         },
       ],
       maxContentBufferSize: 1_048_576, // one snapshot jpeg in flight
+      // HA's audio relayed as is. werift offers HA Opus first, then PCMU,
+      // which has no Matter AudioCodec. Opus runs at 8, 12, 16, 24 and 48 kHz
+      // (RFC 6716) with up to two channels on RTP (RFC 7587). Opus has no bit
+      // depth of its own; 24 and 32 are what the CHIP example camera lists.
+      microphoneCapabilities: {
+        maxNumberOfChannels: 2,
+        supportedCodecs: [CameraAvStreamManagement.AudioCodec.Opus],
+        supportedSampleRates: [48_000, 24_000, 16_000, 12_000, 8_000],
+        supportedBitDepths: [16, 24, 32],
+      },
+      microphoneMuted: false,
+      // The relay cannot change the gain. Min equal to max is how a camera
+      // says so, SmartThings then hides the volume control.
+      microphoneVolumeLevel: 254,
+      microphoneMaxLevel: 254,
+      microphoneMinLevel: 254,
       // ImageControl attributes: matter.js conformance (since 0.17.5) forces the
       // feature. Controllers can write these but the proxied HA media path
       // never applies a transform.

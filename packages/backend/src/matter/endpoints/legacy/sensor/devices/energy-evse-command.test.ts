@@ -330,4 +330,54 @@ describe("energy evse commands", () => {
       expect(Number((agent as any).energyEvse.state.supplyState)).toBe(0);
     });
   });
+
+  it("keeps charging targets per day for getTargets until cleared", async () => {
+    const endpoint = await mount();
+    const target = { targetTimeMinutesPastMidnight: 420, addedEnergy: 20000 };
+    // biome-ignore lint/suspicious/noExplicitAny: invoke command handler
+    const evse = (agent: any) => agent.energyEvse;
+    await endpoint.act((agent) =>
+      evse(agent).setTargets({
+        chargingTargetSchedules: [
+          {
+            dayOfWeekForSequence: { monday: true, tuesday: true },
+            chargingTargets: [target],
+          },
+        ],
+      }),
+    );
+    // A later command replaces only the days it lists.
+    await endpoint.act((agent) =>
+      evse(agent).setTargets({
+        chargingTargetSchedules: [
+          {
+            dayOfWeekForSequence: { tuesday: true },
+            chargingTargets: [{ ...target, addedEnergy: 5000 }],
+          },
+        ],
+      }),
+    );
+    const read = () =>
+      endpoint.act((agent) => evse(agent).getTargets()) as Promise<{
+        chargingTargetSchedules: Array<{
+          dayOfWeekForSequence: Record<string, boolean>;
+          chargingTargets: Array<{ addedEnergy: number }>;
+        }>;
+      }>;
+    const { chargingTargetSchedules } = await read();
+    expect(
+      chargingTargetSchedules.map((s) => [
+        Object.keys(s.dayOfWeekForSequence).filter(
+          (d) => s.dayOfWeekForSequence[d],
+        ),
+        s.chargingTargets[0].addedEnergy,
+      ]),
+    ).toEqual([
+      [["monday"], 20000],
+      [["tuesday"], 5000],
+    ]);
+
+    await endpoint.act((agent) => evse(agent).clearTargets());
+    expect((await read()).chargingTargetSchedules).toEqual([]);
+  });
 });

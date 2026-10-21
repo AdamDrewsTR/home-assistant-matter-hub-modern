@@ -96,6 +96,23 @@ describe("EntityIsolationService", () => {
       EntityIsolationService.unregisterIsolationCallback(BRIDGE_ID);
     });
 
+    it("classifies the matter.js 0.18 timer wording as a timing error", async () => {
+      const callback = vi.fn().mockResolvedValue(undefined);
+      EntityIsolationService.registerIsolationCallback(BRIDGE_ID, callback);
+
+      await EntityIsolationService.isolateFromError(
+        makeError(
+          'Invalid interval for timer "Subscription": NaN; it must be finite and not negative',
+        ),
+      );
+
+      expect(
+        EntityIsolationService.getIsolatedEntities(BRIDGE_ID)[0].reason,
+      ).toContain("Subscription timing error");
+
+      EntityIsolationService.unregisterIsolationCallback(BRIDGE_ID);
+    });
+
     it("should isolate on Behaviors have errors", async () => {
       const callback = vi.fn().mockResolvedValue(undefined);
       EntityIsolationService.registerIsolationCallback(BRIDGE_ID, callback);

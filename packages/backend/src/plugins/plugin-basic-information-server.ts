@@ -3,6 +3,7 @@ import { VendorId } from "@matter/main";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors";
 import { BridgeDataProvider } from "../services/bridges/bridge-data-provider.js";
 import { applyPatchState } from "../utils/apply-patch-state.js";
+import { trimToLength } from "../utils/trim-to-length.js";
 import { PluginDeviceBehavior } from "./plugin-behavior.js";
 
 /**
@@ -37,6 +38,5 @@ export class PluginBasicInformationServer extends BridgedDeviceBasicInformationS
 }
 
 function truncate(maxLength: number, value: string): string {
-  if (value.length <= maxLength) return value;
-  return `${value.substring(0, maxLength - 3)}...`;
+  return trimToLength(value, maxLength, "...") ?? value;
 }

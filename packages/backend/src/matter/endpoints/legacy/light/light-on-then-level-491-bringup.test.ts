@@ -87,6 +87,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await server?.close().catch(() => {});
   server = undefined;
   rmSync(dir, { recursive: true, force: true });
@@ -134,12 +135,14 @@ describe("#491 Alexa set to 20% on an off light", () => {
   it("reaches Home Assistant as a single turn_on with the brightness", async () => {
     const endpoint = await mount(offLight("light.buro_stehlampe"));
 
-    // act() adds delay on top of Alexa's 37ms, stay inside the 100ms window
+    // fake clock: a slow storage commit in act() must not eat the 100ms window
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     await endpoint.act(async (agent) => {
       // biome-ignore lint/suspicious/noExplicitAny: drive the controller command
       await (agent as any).onOff.on();
     });
-    await wait(5);
+    // Alexa's gap between On and MoveToLevel
+    await vi.advanceTimersByTimeAsync(37);
     await endpoint.act(async (agent) => {
       // biome-ignore lint/suspicious/noExplicitAny: drive the controller command
       await (agent as any).levelControl.moveToLevel({
@@ -149,10 +152,7 @@ describe("#491 Alexa set to 20% on an off light", () => {
         optionsOverride: { executeIfOff: false, coupleColorTempToLevel: false },
       });
     });
-    await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0), {
-      timeout: 1000,
-    });
-    await wait(200);
+    await vi.advanceTimersByTimeAsync(300);
 
     expect(sent).toHaveLength(1);
     expect(sent[0].service).toBe("light.turn_on");

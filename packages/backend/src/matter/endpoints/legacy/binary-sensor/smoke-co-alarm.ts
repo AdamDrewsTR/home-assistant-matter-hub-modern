@@ -11,7 +11,10 @@ import { applyPatchState } from "../../../../utils/apply-patch-state.js";
 import { BasicInformationServer } from "../../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
-import { PowerSourceServer } from "../../../behaviors/power-source-server.js";
+import {
+  PowerSourceServer,
+  WiredPowerSourceServer,
+} from "../../../behaviors/power-source-server.js";
 
 // Battery source shared by the PowerSource and the batteryAlert, so both read
 // the exact same value: a mapped battery entity, else the alarm's own attribute.
@@ -167,11 +170,13 @@ class CoAlarmServerImpl extends CoAlarmServerWithFeature {
 // PowerSource configuration for battery-powered smoke/CO alarms
 const AlarmPowerSourceServer = PowerSourceServer({ getBatteryPercent });
 
+// SmokeCoAlarm mandates a PowerSource; without a battery it is the wired one.
 export const SmokeAlarmType = SmokeCoAlarmDevice.with(
   BasicInformationServer,
   IdentifyServer,
   HomeAssistantEntityBehavior,
   SmokeAlarmServerImpl,
+  WiredPowerSourceServer,
 );
 
 export const SmokeAlarmWithBatteryType = SmokeCoAlarmDevice.with(
@@ -187,6 +192,7 @@ export const CoAlarmType = SmokeCoAlarmDevice.with(
   IdentifyServer,
   HomeAssistantEntityBehavior,
   CoAlarmServerImpl,
+  WiredPowerSourceServer,
 );
 
 export const CoAlarmWithBatteryType = SmokeCoAlarmDevice.with(

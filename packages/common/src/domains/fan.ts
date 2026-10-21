@@ -13,7 +13,7 @@ export enum FanDeviceFeature {
 }
 
 export interface FanDeviceAttributes {
-  current_direction?: FanDeviceDirection;
+  direction?: FanDeviceDirection;
   is_on?: boolean;
   oscillating?: boolean;
   percentage?: number;

@@ -143,6 +143,7 @@ export function EntityMappingDialog({
   const [disableBatteryMapping, setDisableBatteryMapping] = useState(false);
   const [roomEntities, setRoomEntities] = useState<string[]>([]);
   const [disableLockPin, setDisableLockPin] = useState(false);
+  const [lockWithoutPin, setLockWithoutPin] = useState(false);
   const [lockUsercodeService, setLockUsercodeService] = useState("");
   const [lockUsercodeSlot, setLockUsercodeSlot] = useState("");
   const [lockPinMinLength, setLockPinMinLength] = useState("");
@@ -173,6 +174,8 @@ export function EntityMappingDialog({
   const [areaDataDrafts, setAreaDataDrafts] = useState<string[]>([]);
   const [valetudoIdentifier, setValetudoIdentifier] = useState("");
   const [coverSwapOpenClose, setCoverSwapOpenClose] = useState(false);
+  const [coverOpenCloseAsPosition, setCoverOpenCloseAsPosition] =
+    useState(false);
   const [coverExposeAsDimmableLight, setCoverExposeAsDimmableLight] =
     useState(false);
   const [selectExposeAsSwitch, setSelectExposeAsSwitch] = useState(false);
@@ -243,6 +246,7 @@ export function EntityMappingDialog({
       setDisableBatteryMapping(currentMapping?.disableBatteryMapping || false);
       setRoomEntities(currentMapping?.roomEntities || []);
       setDisableLockPin(currentMapping?.disableLockPin || false);
+      setLockWithoutPin(currentMapping?.lockWithoutPin || false);
       setLockUsercodeService(currentMapping?.lockUsercodeService || "");
       setLockUsercodeSlot(
         currentMapping?.lockUsercodeSlot != null
@@ -289,6 +293,9 @@ export function EntityMappingDialog({
       );
       setValetudoIdentifier(currentMapping?.valetudoIdentifier || "");
       setCoverSwapOpenClose(currentMapping?.coverSwapOpenClose || false);
+      setCoverOpenCloseAsPosition(
+        currentMapping?.coverOpenCloseAsPosition || false,
+      );
       setCoverExposeAsDimmableLight(
         currentMapping?.coverExposeAsDimmableLight || false,
       );
@@ -417,6 +424,7 @@ export function EntityMappingDialog({
       customServiceAreas:
         customServiceAreas.length > 0 ? customServiceAreas : undefined,
       disableLockPin: disableLockPin || undefined,
+      lockWithoutPin: lockWithoutPin || undefined,
       lockUsercodeService: lockUsercodeService.trim() || undefined,
       lockUsercodeSlot: parseUsercodeSlot(lockUsercodeSlot),
       lockPinMinLength: parsePinLength(lockPinMinLength),
@@ -454,6 +462,7 @@ export function EntityMappingDialog({
       fanWindPresets,
       valetudoIdentifier: valetudoIdentifier.trim() || undefined,
       coverSwapOpenClose: coverSwapOpenClose || undefined,
+      coverOpenCloseAsPosition: coverOpenCloseAsPosition || undefined,
       coverExposeAsDimmableLight: coverExposeAsDimmableLight || undefined,
       selectExposeAsSwitch: selectExposeAsSwitch || undefined,
       selectSwitchOnOption: selectExposeAsSwitch
@@ -498,6 +507,7 @@ export function EntityMappingDialog({
     disableBatteryMapping,
     roomEntities,
     disableLockPin,
+    lockWithoutPin,
     lockUsercodeService,
     lockUsercodeSlot,
     lockPinMinLength,
@@ -526,6 +536,7 @@ export function EntityMappingDialog({
     fanSleepPresets,
     valetudoIdentifier,
     coverSwapOpenClose,
+    coverOpenCloseAsPosition,
     coverExposeAsDimmableLight,
     selectExposeAsSwitch,
     selectSwitchOnOption,
@@ -942,7 +953,7 @@ export function EntityMappingDialog({
                   }
                 />
               }
-              label="Don't expose custom areas as per-room cleaning modes (forces Apple Home to use the multi-room area picker). Keep off for Google Home / Alexa, which rely on the modes."
+              label="Don't expose rooms as per-room cleaning modes (forces Apple Home to use the multi-room area picker). Keep off for Google Home / Alexa, which rely on the modes."
               sx={{ mt: 1, display: "block" }}
             />
             <FormControlLabel
@@ -1342,9 +1353,14 @@ export function EntityMappingDialog({
               const dataValid = parseAreaData(
                 areaDataDrafts[index] ?? "",
               ).valid;
+              const hasMap = (a: CustomServiceArea) =>
+                typeof a.mapName === "string" && a.mapName.trim() !== "";
+              const mapMissing =
+                !hasMap(area) && customServiceAreas.some(hasMap);
               return (
                 <Box
-                  key={`area-${area.name || index}`}
+                  // biome-ignore lint/suspicious/noArrayIndexKey: an area is its position, two may share a name
+                  key={index}
                   sx={{
                     display: "flex",
                     flexDirection: "column",
@@ -1468,6 +1484,49 @@ export function EntityMappingDialog({
                       sx={{ width: 110 }}
                     />
                   </Box>
+                  <Box
+                    sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}
+                  >
+                    <TextField
+                      size="small"
+                      label="Map (optional)"
+                      slotProps={{ htmlInput: { maxLength: 64 } }}
+                      value={area.mapName ?? ""}
+                      error={mapMissing}
+                      helperText={
+                        mapMissing ? "Needed on every area" : undefined
+                      }
+                      onChange={(e) => {
+                        const updated = [...customServiceAreas];
+                        updated[index] = {
+                          ...area,
+                          mapName: e.target.value || undefined,
+                        };
+                        setCustomServiceAreas(updated);
+                      }}
+                      sx={{ width: 150 }}
+                    />
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="Floor"
+                      slotProps={{ htmlInput: { step: 1 } }}
+                      value={area.floorNumber ?? ""}
+                      onChange={(e) => {
+                        const n = Number.parseInt(e.target.value, 10);
+                        const updated = [...customServiceAreas];
+                        updated[index] = {
+                          ...area,
+                          floorNumber:
+                            Number.isInteger(n) && n >= -32767 && n <= 32767
+                              ? n
+                              : undefined,
+                        };
+                        setCustomServiceAreas(updated);
+                      }}
+                      sx={{ width: 90 }}
+                    />
+                  </Box>
                 </Box>
               );
             })}
@@ -1497,6 +1556,18 @@ export function EntityMappingDialog({
                 />
               }
               label="Swap open/close commands (for awnings and similar covers)"
+              sx={{ mt: 1, display: "block" }}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={coverOpenCloseAsPosition}
+                  onChange={(e) =>
+                    setCoverOpenCloseAsPosition(e.target.checked)
+                  }
+                />
+              }
+              label="Send open/close as position 100% / 0% (for covers that stop instead of reversing on open/close while moving)"
               sx={{ mt: 1, display: "block" }}
             />
             <FormControlLabel
@@ -1534,6 +1605,16 @@ export function EntityMappingDialog({
                 />
               }
               label="Disable PIN requirement for this lock"
+              sx={{ mt: 1, display: "block" }}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={lockWithoutPin}
+                  onChange={(e) => setLockWithoutPin(e.target.checked)}
+                />
+              }
+              label="Lock has no keypad: offer no PIN codes to controllers (re-pair after changing)"
               sx={{ mt: 1, display: "block" }}
             />
             <TextField

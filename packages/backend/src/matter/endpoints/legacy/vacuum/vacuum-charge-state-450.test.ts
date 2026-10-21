@@ -7,7 +7,11 @@ import type {
 } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { VendorId } from "@matter/main";
-import { PowerSource, RvcOperationalState } from "@matter/main/clusters";
+import {
+  ModeBase,
+  PowerSource,
+  RvcOperationalState,
+} from "@matter/main/clusters";
 import { ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../../services/bridges/bridge-data-provider.js";
@@ -336,5 +340,22 @@ describe("charging entity auto assignment (#450)", () => {
     const endpoint = await mount(registry({ battery_level: 96 }));
     expect(endpoint.mappedEntityIds).toEqual([]);
     expect(chargeState(endpoint)).toBe(PowerSource.BatChargeState.IsCharging);
+  });
+});
+
+describe("clean modes of a vacuum without choices (matter.js 0.18)", () => {
+  it("carries two modes and refuses the placeholder", async () => {
+    const endpoint = await mount(registry({ battery_level: 96 }));
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state
+    const cleanMode = () => (endpoint.state as any).rvcCleanMode;
+    expect(
+      cleanMode().supportedModes.map((m: { mode: number }) => m.mode),
+    ).toEqual([0, 4]);
+    const answer = await endpoint.act((agent) =>
+      // biome-ignore lint/suspicious/noExplicitAny: drive the cluster
+      (agent as any).rvcCleanMode.changeToMode({ newMode: 4 }),
+    );
+    expect(answer.status).toBe(ModeBase.ModeChangeStatus.GenericFailure);
+    expect(cleanMode().currentMode).toBe(0);
   });
 });

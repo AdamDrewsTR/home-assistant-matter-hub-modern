@@ -121,6 +121,28 @@ function evseType() {
   return type;
 }
 
+// Old numbering plus a second mode, so a mode change gets written.
+function oldType(): EndpointType {
+  const OldModes = EnergyEvseModeServer.set({
+    supportedModes: [
+      {
+        label: "Manual",
+        mode: 1,
+        modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
+      },
+      {
+        label: "Other",
+        mode: 2,
+        modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
+      },
+    ],
+    currentMode: 1,
+  });
+  // Real type, only the mode server swapped.
+  // biome-ignore lint/suspicious/noExplicitAny: swap one behavior on the built type
+  return (evseType() as any).with(OldModes) as EndpointType;
+}
+
 // biome-ignore lint/suspicious/noExplicitAny: read cluster state
 async function currentMode(endpoint: Endpoint<any>): Promise<number> {
   return endpoint.act((agent) =>
@@ -147,26 +169,8 @@ describe("evse mode numbering (#475)", () => {
   });
 
   it("mounts over storage that still holds a mode from before the renumbering", async () => {
-    // Old numbering plus a second mode, so a mode change gets written.
-    const OldModes = EnergyEvseModeServer.set({
-      supportedModes: [
-        {
-          label: "Manual",
-          mode: 1,
-          modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
-        },
-        {
-          label: "Other",
-          mode: 2,
-          modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
-        },
-      ],
-      currentMode: 1,
-    });
-    // Real type, only the mode server swapped.
-    // biome-ignore lint/suspicious/noExplicitAny: swap one behavior on the built type
-    const oldType = (evseType() as any).with(OldModes) as EndpointType;
-    const first = await mount(oldType);
+    const old = oldType();
+    const first = await mount(old);
     await first.act(async (agent) => {
       // biome-ignore lint/suspicious/noExplicitAny: drive the cluster
       await (agent as any).energyEvseMode.changeToMode({ newMode: 2 });
@@ -176,11 +180,28 @@ describe("evse mode numbering (#475)", () => {
 
     // Same storage, old shape: the written mode survived.
     env = makeEnv();
-    const second = await mount(oldType);
+    const second = await mount(old);
     expect(await currentMode(second)).toBe(2);
     await closeServer();
 
     // Same storage, current shape: 2 is gone, land on 0.
+    env = makeEnv();
+    const endpoint = await mount(evseType());
+    expect(await currentMode(endpoint)).toBe(0);
+  });
+
+  it("mounts a stored Manual 1 as Manual, not Time of Use", async () => {
+    const first = await mount(oldType());
+    for (const newMode of [2, 1]) {
+      await first.act(async (agent) => {
+        // biome-ignore lint/suspicious/noExplicitAny: drive the cluster
+        await (agent as any).energyEvseMode.changeToMode({ newMode });
+      });
+    }
+    expect(await currentMode(first)).toBe(1);
+    await closeServer();
+
+    // 1 is Time of Use in the current list.
     env = makeEnv();
     const endpoint = await mount(evseType());
     expect(await currentMode(endpoint)).toBe(0);

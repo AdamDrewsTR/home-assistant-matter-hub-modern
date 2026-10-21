@@ -1,3 +1,4 @@
+import { Specification } from "@matter/main/model";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyLegacySpecSessionParameters,
@@ -22,8 +23,8 @@ describe("advertiseSpecVersion151 (#449)", () => {
     // biome-ignore lint/suspicious/noExplicitAny: session manager stub
     applyLegacySpecSessionParameters(sessionManager as any, {});
     expect(setter).toHaveBeenCalledWith({
-      specificationVersion: 17170432,
-      dataModelRevision: 21,
+      specificationVersion: Specification.SPECIFICATION_VERSION,
+      dataModelRevision: Specification.DATA_MODEL_REVISION,
     });
   });
 
@@ -122,8 +123,12 @@ describe("the mask reaches the root node attributes (#449)", () => {
 
   it("keeps the matter.js values with the flag off", async () => {
     const node = await mount({});
-    expect(node.state.basicInformation.specificationVersion).toBe(17170432);
-    expect(node.state.basicInformation.dataModelRevision).toBe(21);
+    expect(node.state.basicInformation.specificationVersion).toBe(
+      Specification.SPECIFICATION_VERSION,
+    );
+    expect(node.state.basicInformation.dataModelRevision).toBe(
+      Specification.DATA_MODEL_REVISION,
+    );
   });
 
   it("a kept node follows the flag through setStateOf, both directions", async () => {
@@ -132,8 +137,12 @@ describe("the mask reaches the root node attributes (#449)", () => {
 
     // flag turned off later, same node: the bridge start path re-applies
     await node.setStateOf(BasicInformationServer, specVersionValues({}));
-    expect(node.state.basicInformation.specificationVersion).toBe(17170432);
-    expect(node.state.basicInformation.dataModelRevision).toBe(21);
+    expect(node.state.basicInformation.specificationVersion).toBe(
+      Specification.SPECIFICATION_VERSION,
+    );
+    expect(node.state.basicInformation.dataModelRevision).toBe(
+      Specification.DATA_MODEL_REVISION,
+    );
 
     await node.setStateOf(
       BasicInformationServer,

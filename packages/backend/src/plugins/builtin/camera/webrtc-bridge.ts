@@ -1,15 +1,30 @@
+import type { Socket } from "node:dgram";
 import { Logger } from "@matter/general";
 import {
   type Connection,
   createConnection,
   createLongLivedTokenAuth,
 } from "home-assistant-js-websocket";
-import { RTCPeerConnection, type RTCRtpTransceiver } from "werift";
+import {
+  RTCPeerConnection,
+  type RTCRtpTransceiver,
+  useH264,
+  useOPUS,
+  usePCMU,
+} from "werift";
 
 // Bridges an HA camera to a Matter controller. Both sides want to be the
 // offerer, so we run two werift peers per session and forward the tracks.
 
 const logger = Logger.get("CameraWebRtc");
+
+// werift offers VP8 only by default. Matter cameras stream H.264 and go2rtc
+// relays an H.264 camera without transcoding, so both peers speak H.264; RTP
+// is forwarded as is, both sides have to agree on the codec.
+const CODECS = {
+  video: [useH264()],
+  audio: [useOPUS(), usePCMU()],
+};
 
 // How long we wait for HA to answer a camera/webrtc/offer before giving up.
 const DEFAULT_HA_WEBRTC_TIMEOUT_MS = 15_000;
@@ -36,7 +51,7 @@ export interface WebRtcBridgeDeps {
 
 // Controller-supplied ICE config, mapped from the Matter ProvideOffer request.
 export interface ControllerIceConfig {
-  iceServers?: { urLs: string[]; username?: string; credential?: string }[];
+  iceServers?: { urls: string[]; username?: string; credential?: string }[];
   iceTransportPolicy?: string;
 }
 
@@ -73,6 +88,7 @@ export class WebRtcBridge {
   // private fields: the devices API dumps every enumerable key of the camera state (#155)
   #connection?: Connection;
   readonly #sessions = new Map<number, BridgeSession>();
+  readonly #mutedMicrophones = new Set<string>();
   readonly #config: WebRtcBridgeConfig;
   readonly #deps: WebRtcBridgeDeps;
 
@@ -101,7 +117,7 @@ export class WebRtcBridge {
     entityId: string,
     ice?: ControllerIceConfig,
   ): Promise<MatterOffer> {
-    const haPeer = new RTCPeerConnection();
+    const haPeer = new RTCPeerConnection({ codecs: CODECS });
     const controllerPeer = new RTCPeerConnection(
       this.controllerConfig(entityId, ice),
     );
@@ -111,8 +127,8 @@ export class WebRtcBridge {
     // Pre-add the sendonly transceivers so our own offer advertises media; a
     // late addTransceiver (inside onTrack) never renegotiates and never sends.
     const senders = new Map<string, RTCRtpTransceiver>();
-    // Video only: the AvStream cluster advertises no audio feature, and the
-    // deferred-offer path has no controller m-lines to constrain against.
+    // Video only: the deferred-offer path has no controller m-lines to
+    // constrain against.
     senders.set(
       "video",
       controllerPeer.addTransceiver("video", { direction: "sendonly" }),
@@ -130,6 +146,7 @@ export class WebRtcBridge {
       haPeer.addTransceiver("audio", { direction: "recvonly" });
       const haOffer = await haPeer.createOffer();
       await haPeer.setLocalDescription(haOffer);
+      growRecvBuffers(haPeer, entityId);
       const haOfferSdp = this.localSdp(haPeer);
       logger.info(`HA offer sent for ${entityId} (${haOfferSdp.length} chars)`);
       const { answer, sessionId, unsubscribe } = await this.requestHaWebRtc(
@@ -175,7 +192,7 @@ export class WebRtcBridge {
     controllerOfferSdp: string,
     ice?: ControllerIceConfig,
   ): Promise<string> {
-    const haPeer = new RTCPeerConnection();
+    const haPeer = new RTCPeerConnection({ codecs: CODECS });
     const controllerPeer = new RTCPeerConnection(
       this.controllerConfig(entityId, ice),
     );
@@ -204,6 +221,7 @@ export class WebRtcBridge {
       haPeer.addTransceiver("audio", { direction: "recvonly" });
       const haOffer = await haPeer.createOffer();
       await haPeer.setLocalDescription(haOffer);
+      growRecvBuffers(haPeer, entityId);
       const haOfferSdp = this.localSdp(haPeer);
       logger.info(`HA offer sent for ${entityId} (${haOfferSdp.length} chars)`);
       const { answer, sessionId, unsubscribe } = await this.requestHaWebRtc(
@@ -318,6 +336,13 @@ export class WebRtcBridge {
     });
   }
 
+  // MicrophoneMuted: the relay cannot re-encode, so it stops the audio and the
+  // player hears silence.
+  setMicrophoneMuted(entityId: string, muted: boolean): void {
+    if (muted) this.#mutedMicrophones.add(entityId);
+    else this.#mutedMicrophones.delete(entityId);
+  }
+
   // Grab a still JPEG via HA's camera proxy (for CaptureSnapshot).
   async snapshot(entityId: string): Promise<Uint8Array> {
     const url = `${this.#config.haUrl}/api/camera_proxy/${entityId}`;
@@ -363,7 +388,9 @@ export class WebRtcBridge {
         return;
       }
       let firstLogged = false;
+      const muted = track.kind === "audio" ? this.#mutedMicrophones : undefined;
       track.onReceiveRtp.subscribe((rtp) => {
+        if (muted?.has(entityId)) return;
         if (!firstLogged) {
           firstLogged = true;
           logger.info(`first RTP forwarded for ${track.kind} (${entityId})`);
@@ -394,7 +421,7 @@ export class WebRtcBridge {
     ice?: ControllerIceConfig,
   ): ConstructorParameters<typeof RTCPeerConnection>[0] | undefined {
     const iceServers = (ice?.iceServers ?? []).flatMap((s) =>
-      (s.urLs ?? []).map((url) => ({
+      (s.urls ?? []).map((url) => ({
         urls: url,
         username: s.username,
         credential: s.credential,
@@ -402,7 +429,7 @@ export class WebRtcBridge {
     );
     if (iceServers.length === 0) {
       logger.info(`controller peer using default ICE servers (${entityId})`);
-      return undefined;
+      return { codecs: CODECS };
     }
     const policy =
       ice?.iceTransportPolicy === "relay" || ice?.iceTransportPolicy === "all"
@@ -412,7 +439,9 @@ export class WebRtcBridge {
       `controller peer using ${iceServers.length} controller ICE server(s)` +
         `${policy ? ` policy=${policy}` : ""} (${entityId})`,
     );
-    return policy ? { iceServers, iceTransportPolicy: policy } : { iceServers };
+    return policy
+      ? { codecs: CODECS, iceServers, iceTransportPolicy: policy }
+      : { codecs: CODECS, iceServers };
   }
 
   private localSdp(peer: RTCPeerConnection): string {
@@ -520,12 +549,48 @@ export class WebRtcBridge {
           if (rejected) unsub();
         })
         .catch((err) => {
-          fail(err instanceof Error ? err : new Error(String(err)));
+          fail(err instanceof Error ? err : new Error(errText(err)));
         });
     });
 
     return { answer, sessionId, unsubscribe };
   }
+}
+
+// The kernel default UDP receive buffer (~208 KB) holds about 90 packets. A
+// 1440p keyframe from go2rtc arrives as a burst of several hundred, the rest is
+// dropped and the controller never gets a whole frame (#373). HAOS allows 4 MB,
+// other hosts cap it at their net.core.rmem_max.
+export const UDP_RECV_BUFFER = 4 * 1024 * 1024;
+
+// werift keeps its sockets internal: ice transport -> connection -> protocols
+export function growRecvBuffers(
+  peer: RTCPeerConnection,
+  entityId: string,
+): number[] {
+  const sizes: number[] = [];
+  for (const ice of peer.iceTransports) {
+    const { protocols = [] } = ice.connection as unknown as {
+      protocols?: { transport?: { socket?: Socket } }[];
+    };
+    for (const p of protocols) {
+      const socket = p.transport?.socket;
+      if (!socket) continue;
+      try {
+        // never shrink a host default that is already larger
+        if (socket.getRecvBufferSize() < UDP_RECV_BUFFER) {
+          socket.setRecvBufferSize(UDP_RECV_BUFFER);
+        }
+        sizes.push(socket.getRecvBufferSize());
+      } catch {
+        // socket closed or not bound yet
+      }
+    }
+  }
+  logger.info(
+    `HA peer UDP receive buffer ${sizes.length ? `${Math.min(...sizes)} bytes` : "unchanged"} (${entityId})`,
+  );
+  return sizes;
 }
 
 // Which media kinds a remote offer advertises, so the answer matches its
@@ -539,6 +604,13 @@ function offerKinds(sdp: string): ("video" | "audio")[] {
   return kinds;
 }
 
+// HA's websocket rejects with a plain { code, message } object
 function errText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (err instanceof Error) return err.message;
+  const { code, message } = (err ?? {}) as {
+    code?: unknown;
+    message?: unknown;
+  };
+  if (message !== undefined) return code ? `${code}: ${message}` : `${message}`;
+  return String(err);
 }

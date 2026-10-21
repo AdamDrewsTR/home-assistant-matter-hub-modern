@@ -392,6 +392,70 @@ describe("user composed device battery and room label (#408)", () => {
     expect(primary!.behaviors.has("powerSource")).toBe(false);
   });
 
+  // A smoke alarm without its own battery mounts a wired PowerSource. The
+  // device battery on the parent replaces it and no sub keeps it, the
+  // composed smoke_co_alarm sub included.
+  it.each([
+    false,
+    true,
+  ])("keeps a smoke alarm on the device battery (merged %s)", async (primaryOnParent) => {
+    const SMOKE = "binary_sensor.smoke";
+    const ha = haRegistryWithBattery();
+    ha.states[PRIMARY] = state(PRIMARY, "off", "smoke");
+    // biome-ignore lint/suspicious/noExplicitAny: minimal registry stub
+    (ha.entities as any)[SMOKE] = { entity_id: SMOKE, device_id: "dev1" };
+    ha.states[SMOKE] = state(SMOKE, "off", "smoke");
+    const endpoint = await UserComposedEndpoint.create({
+      registry: new BridgeRegistry(ha, dataProvider(true, primaryOnParent)),
+      primaryEntityId: PRIMARY,
+      mapping: { entityId: PRIMARY, batteryEntity: BATTERY },
+      composedEntities: [
+        ...composedEntities,
+        { entityId: SMOKE, matterDeviceType: "smoke_co_alarm" },
+      ],
+    });
+    expect(endpoint).toBeDefined();
+    expect(endpoint!.mappedEntityIds).toContain(SMOKE);
+    await mount(endpoint!);
+
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state off parent
+    const features = (endpoint!.state as any).powerSource.featureMap;
+    expect(features.battery).toBe(true);
+    expect(features.wired).toBe(false);
+    for (const part of endpoint!.parts) {
+      expect(part.behaviors.has("powerSource")).toBe(false);
+    }
+  });
+
+  // Solar tags its wired PowerSource Grid. With the device battery the tag
+  // must not stay behind on the battery parent or on a sub without a source.
+  it.each([
+    false,
+    true,
+  ])("drops the solar Grid tag for the device battery (merged %s)", async (primaryOnParent) => {
+    const ha = haRegistryWithBattery();
+    ha.states[PRIMARY] = state(PRIMARY, "12.5", "energy", "kWh");
+    const endpoint = await UserComposedEndpoint.create({
+      registry: new BridgeRegistry(ha, dataProvider(true, primaryOnParent)),
+      primaryEntityId: PRIMARY,
+      mapping: {
+        entityId: PRIMARY,
+        matterDeviceType: "solar_power",
+        batteryEntity: BATTERY,
+      },
+      composedEntities,
+    });
+    expect(endpoint).toBeDefined();
+    await mount(endpoint!);
+
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state off parent
+    expect((endpoint!.state as any).powerSource.featureMap.battery).toBe(true);
+    for (const part of [endpoint!, ...endpoint!.parts]) {
+      // biome-ignore lint/suspicious/noExplicitAny: read cluster state off part
+      expect((part.state as any).descriptor.featureMap.tagList).toBe(false);
+    }
+  });
+
   it("puts the room label on the parent and the primary sub", async () => {
     const endpoint = await createWithArea(bridgeRegistry(true));
     expect(endpoint).toBeDefined();

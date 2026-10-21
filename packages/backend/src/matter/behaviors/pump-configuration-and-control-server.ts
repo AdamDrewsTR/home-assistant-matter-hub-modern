@@ -4,7 +4,11 @@ import { PumpConfigurationAndControl } from "@matter/main/clusters";
 import { applyPatchState } from "../../utils/apply-patch-state.js";
 import { HomeAssistantEntityBehavior } from "./home-assistant-entity-behavior.js";
 
-export class PumpConfigurationAndControlServerBase extends Base {
+// matter.js refuses the cluster without a control mode feature, and update()
+// reports ConstantSpeed.
+const FeaturedBase = Base.with("ConstantSpeed");
+
+export class PumpConfigurationAndControlServerBase extends FeaturedBase {
   declare state: PumpConfigurationAndControlServerBase.State;
 
   override async initialize() {
@@ -34,7 +38,7 @@ export class PumpConfigurationAndControlServerBase extends Base {
 }
 
 export namespace PumpConfigurationAndControlServerBase {
-  export class State extends Base.State {}
+  export class State extends FeaturedBase.State {}
 }
 
 export const PumpConfigurationAndControlServer =
@@ -42,6 +46,8 @@ export const PumpConfigurationAndControlServer =
     maxPressure: null,
     maxSpeed: null,
     maxFlow: null,
+    minConstSpeed: null,
+    maxConstSpeed: null,
     effectiveOperationMode: PumpConfigurationAndControl.OperationMode.Normal,
     effectiveControlMode: PumpConfigurationAndControl.ControlMode.ConstantSpeed,
     capacity: null,

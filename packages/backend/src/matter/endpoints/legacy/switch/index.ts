@@ -6,11 +6,11 @@ import { HaElectricalEnergyMeasurementServer } from "../../../behaviors/electric
 import { HaElectricalPowerMeasurementServer } from "../../../behaviors/electrical-power-measurement-server.js";
 import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
-import { OnOffServer } from "../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../behaviors/on-off-server.js";
 import { DefaultPowerSourceServer } from "../../../behaviors/power-source-server.js";
 import { HaPowerTopologyServer } from "../../../behaviors/power-topology-server.js";
 
-const SwitchOnOffServer = OnOffServer();
+const SwitchOnOffServer = PlugOnOffServer();
 
 const SwitchEndpointType = OnOffPlugInUnitDevice.with(
   BasicInformationServer,

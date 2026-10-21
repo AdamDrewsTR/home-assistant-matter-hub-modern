@@ -25,6 +25,7 @@ import {
 import { Endpoint, type EndpointType } from "@matter/main";
 import { uniq } from "lodash-es";
 import { describe, expect, it } from "vitest";
+import { DefaultPowerSourceServer } from "../../behaviors/power-source-server.js";
 import { createLegacyEndpointType } from "./create-legacy-endpoint-type.js";
 
 const testEntities: Record<
@@ -281,7 +282,13 @@ describe("createLegacyEndpointType", () => {
       .sort();
     // fanSpeedMemory stays out of ClusterId on purpose: CustomStorage skips
     // loading ClusterId-suffixed contexts, and the speed memory must persist.
-    const expected = [...Object.keys(ClusterId), "fanSpeedMemory"].sort();
+    // binding comes with the client cluster device types (On/Off Sensor,
+    // Doorbell) since matter.js 0.18; controller-written bindings persist too.
+    const expected = [
+      ...Object.keys(ClusterId),
+      "fanSpeedMemory",
+      "binding",
+    ].sort();
     expect(actual).toEqual(expected);
   });
 });
@@ -308,6 +315,31 @@ describe("explicit matterDeviceType battery (#408)", () => {
       entityId: "binary_sensor.occ",
       matterDeviceType: "occupancy_sensor",
     });
+    expect(type).toBeDefined();
+    expect(type!.behaviors).not.toHaveProperty("powerSource");
+  });
+
+  // Solar mounts a wired PowerSource tagged Grid. A mapped battery replaces
+  // the source and the tag goes with it.
+  it.each([
+    "solar_power",
+    "electrical_sensor",
+  ] as const)("lets a battery entity replace the wired %s source", (matterDeviceType) => {
+    const type = createLegacyEndpointType(entity, {
+      entityId: "binary_sensor.occ",
+      matterDeviceType,
+      batteryEntity: "sensor.battery",
+    });
+    expect(type!.behaviors.powerSource).toBe(DefaultPowerSourceServer);
+    expect(type!.behaviors).not.toHaveProperty("descriptor");
+  });
+
+  // This path never read a battery attribute. It must not claim mains either.
+  it("drops the wired smoke_co_alarm source for a battery attribute", () => {
+    const type = createLegacyEndpointType(
+      createEntity("binary_sensor.smoke", "off", { battery_level: 50 }),
+      { entityId: "binary_sensor.smoke", matterDeviceType: "smoke_co_alarm" },
+    );
     expect(type).toBeDefined();
     expect(type!.behaviors).not.toHaveProperty("powerSource");
   });

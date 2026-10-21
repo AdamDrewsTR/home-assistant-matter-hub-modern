@@ -10,6 +10,24 @@ import type { ValueGetter, ValueSetter } from "./utils/cluster-config.js";
 
 const logger = Logger.get("RvcCleanModeServerBase");
 
+// SupportedModes needs 2 to 255 entries (enforced since matter.js 0.18). A
+// vacuum with nothing to choose still keeps the cluster for Alexa (#183), so
+// it gets this second mode and refuses it. Vacuum builders never use mode 4.
+const PLACEHOLDER_MODE: RvcCleanMode.ModeOption = {
+  label: "Auto",
+  mode: 4,
+  modeTags: [
+    { value: RvcCleanMode.ModeTag.Vacuum },
+    { value: RvcCleanMode.ModeTag.Auto },
+  ],
+};
+
+function withTwoModes(
+  modes: RvcCleanMode.ModeOption[],
+): RvcCleanMode.ModeOption[] {
+  return modes.length > 1 ? modes : [...modes, PLACEHOLDER_MODE];
+}
+
 export interface RvcCleanModeServerConfig {
   getCurrentMode: ValueGetter<number>;
   getSupportedModes: ValueGetter<RvcCleanMode.ModeOption[]>;
@@ -73,9 +91,8 @@ class RvcCleanModeServerBase extends Base {
       this.state,
       {
         currentMode,
-        supportedModes: this.state.config.getSupportedModes(
-          entity.state,
-          this.agent,
+        supportedModes: withTwoModes(
+          this.state.config.getSupportedModes(entity.state, this.agent),
         ),
       },
       { force: true },
@@ -97,6 +114,13 @@ class RvcCleanModeServerBase extends Base {
       return {
         status: ModeBase.ModeChangeStatus.UnsupportedMode,
         statusText: `Unsupported mode: ${newMode}`,
+      };
+    }
+
+    if (newMode === PLACEHOLDER_MODE.mode) {
+      return {
+        status: ModeBase.ModeChangeStatus.GenericFailure,
+        statusText: "Not supported by this vacuum",
       };
     }
 
@@ -149,7 +173,7 @@ export function RvcCleanModeServer(
 
   return RvcCleanModeServerBase.set({
     config,
-    supportedModes: initialState?.supportedModes ?? defaultModes,
+    supportedModes: withTwoModes(initialState?.supportedModes ?? defaultModes),
     currentMode: initialState?.currentMode ?? 0,
   });
 }

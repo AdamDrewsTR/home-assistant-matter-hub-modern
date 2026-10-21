@@ -186,6 +186,12 @@ export interface EntityMappingConfig {
    */
   readonly disableLockPin?: boolean;
   /**
+   * Optional: expose the lock without User and PIN features, so controllers
+   * offer no access code setup. For locks without a keypad. Controllers cache
+   * the features at pairing, re-pair after changing it. Default: false.
+   */
+  readonly lockWithoutPin?: boolean;
+  /**
    * Optional: HA service that programs a usercode on the physical lock when a
    * controller sets or clears the PIN credential, e.g.
    * zwave_js.set_lock_usercode or zha.set_lock_user_code. Opt-in, leave unset
@@ -332,9 +338,10 @@ export interface EntityMappingConfig {
    */
   readonly vacuumRoomSwitches?: boolean;
   /**
-   * Optional: Don't expose custom service areas as per-room RvcRunMode modes,
-   * so Apple Home uses the ServiceArea multi-room picker instead of cleaning a
-   * single room. Keep off for Google Home / Alexa, which use the modes (#367).
+   * Optional: Don't expose rooms (custom areas, CLEAN_AREA, vacuum attributes)
+   * as per-room RvcRunMode modes, so Apple Home uses the ServiceArea multi-room
+   * picker instead of cleaning a single room. Keep off for Google Home / Alexa,
+   * which use the modes (#367, #511).
    */
   readonly disableCustomAreaRoomModes?: boolean;
   /**
@@ -351,6 +358,12 @@ export interface EntityMappingConfig {
    * coverSwapOpenClose feature flag for this entity only.
    */
   readonly coverSwapOpenClose?: boolean;
+  /**
+   * Optional: send open/close as set_cover_position 100/0. Some integrations
+   * (Cover Time Based) only stop on an open/close while moving but reverse on
+   * a position (#512). Covers without set_position keep open/close.
+   */
+  readonly coverOpenCloseAsPosition?: boolean;
   /**
    * Optional: expose this cover as a Dimmable Light instead of a WindowCovering.
    * Level maps to position (100% open), on/off to open/close. Alexa workaround,
@@ -475,6 +488,15 @@ export interface CustomServiceArea {
    * currentArea/progress from a cumulative cleaned-area sensor (#368).
    */
   readonly sizeSqm?: number;
+  /**
+   * Optional: map (floor) this area belongs to, exposed as a Matter map.
+   * Set it on every area or on none (#506).
+   */
+  readonly mapName?: string;
+  /**
+   * Optional: floor number, 0 is the main floor, negative is below ground.
+   */
+  readonly floorNumber?: number;
 }
 
 export interface EntityMappingRequest {
@@ -497,6 +519,7 @@ export interface EntityMappingRequest {
   readonly chargingStateEntity?: string;
   readonly roomEntities?: string[];
   readonly disableLockPin?: boolean;
+  readonly lockWithoutPin?: boolean;
   readonly lockUsercodeService?: string;
   readonly lockUsercodeSlot?: number;
   readonly lockPinMinLength?: number;
@@ -526,6 +549,7 @@ export interface EntityMappingRequest {
   readonly disableCustomAreaRoomModes?: boolean;
   readonly valetudoIdentifier?: string;
   readonly coverSwapOpenClose?: boolean;
+  readonly coverOpenCloseAsPosition?: boolean;
   readonly coverExposeAsDimmableLight?: boolean;
   readonly selectExposeAsSwitch?: boolean;
   readonly selectSwitchOnOption?: string;

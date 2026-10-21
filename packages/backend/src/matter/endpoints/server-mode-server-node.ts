@@ -34,8 +34,6 @@ export class ServerModeServerNode extends ServerNode {
   private readonly deviceEndpoints = new Map<string, Endpoint>();
   private readonly featureFlags?: BridgeFeatureFlags;
   private readonly serialNumberSuffix?: string;
-  // Used by patched ServerSubscription for priming reports (#424).
-  hamhOmitEventsInPriming: boolean;
 
   constructor(env: Environment, bridgeData: BridgeData) {
     super({
@@ -81,8 +79,6 @@ export class ServerModeServerNode extends ServerNode {
     });
     this.featureFlags = bridgeData.featureFlags;
     this.serialNumberSuffix = bridgeData.serialNumberSuffix;
-    this.hamhOmitEventsInPriming =
-      bridgeData.featureFlags?.omitEventsInPriming === true;
   }
 
   /** Number of device endpoints currently attached. */
@@ -136,8 +132,8 @@ export class ServerModeServerNode extends ServerNode {
         ? (trimToLength(sanitizeMatterString(nodeLabel ?? ""), 32, "...") ??
           undefined)
         : undefined;
-    // Reserve room for the suffix so it survives the 32-char cap (#330).
-    const maxRawLen = 32 - (this.serialNumberSuffix?.length ?? 0);
+    // Reserve room for the suffix so it survives the 32-byte cap (#330).
+    const maxRawLen = 32 - Buffer.byteLength(this.serialNumberSuffix ?? "");
     const registrySerial = this.featureFlags?.useHaRegistrySerial
       ? trimToLength(device?.serial_number, maxRawLen, "...")
       : undefined;

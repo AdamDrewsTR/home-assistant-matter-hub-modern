@@ -23,7 +23,7 @@ export function shouldSuppressError(error: unknown): boolean {
   return (
     msg.includes("Connection lost") ||
     msg.includes("Endpoint storage inaccessible") ||
-    msg.includes("Invalid intervalMs") ||
+    msg.includes("Invalid interval") ||
     msg.includes("generalDiagnostics") ||
     msg.includes("Behaviors have errors") ||
     msg.includes("TransactionDestroyedError") ||
@@ -40,7 +40,7 @@ export function shouldSuppressError(error: unknown): boolean {
 export function isIsolatableError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return (
-    msg.includes("Invalid intervalMs") ||
+    msg.includes("Invalid interval") ||
     msg.includes("Behaviors have errors") ||
     msg.includes("TransactionDestroyedError") ||
     msg.includes("DestroyedDependencyError") ||

@@ -127,12 +127,12 @@ describe("deviceClassMapping", () => {
     expect(mapping?.endProductType).toBe(WindowCovering.EndProductType.Unknown);
   });
 
-  it("keeps Shutter for a shutter that also tilts", () => {
-    // Shutter is LF | TL, so it stays honest with or without tilt
+  it("maps a shutter that also tilts to an exterior venetian blind", () => {
+    // Matter 1.6.1: Shutter is LF xor TL, RollerShutter is lift only
     const mapping = deviceClassMapping(entity("shutter", 143));
-    expect(mapping?.type).toBe(WindowCovering.WindowCoveringType.Shutter);
+    expect(mapping?.type).toBe(WindowCovering.WindowCoveringType.TiltBlindLift);
     expect(mapping?.endProductType).toBe(
-      WindowCovering.EndProductType.RollerShutter,
+      WindowCovering.EndProductType.ExteriorVenetianBlind,
     );
   });
 

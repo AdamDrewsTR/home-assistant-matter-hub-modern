@@ -876,3 +876,75 @@ describe("#456 attribute list stays stable across a restart", () => {
     expect(attributeList(second)).toEqual(before);
   });
 });
+
+// #512: Cover Time Based stops on open/close while moving but reverses on a
+// position, and Alexa sends open/close as the 0/10000 lift ends. The per-entity
+// coverOpenCloseAsPosition sends those ends as set_cover_position 100/0.
+describe("#512 open/close as position", () => {
+  const asPosition: EntityMappingConfig = {
+    entityId: "cover.blind",
+    coverOpenCloseAsPosition: true,
+  };
+  const sent = () =>
+    calls.map((c) => [c.action, (c.data as { position?: number })?.position]);
+
+  it("sends the lift ends as set_cover_position 100/0", async () => {
+    const endpoint = await mount("open", 50, asPosition);
+    calls.length = 0;
+    await goToLift(endpoint, 0);
+    await goToLift(endpoint, 10000);
+    expect(sent()).toEqual([
+      ["cover.set_cover_position", 100],
+      ["cover.set_cover_position", 0],
+    ]);
+  });
+
+  it("keeps open/close without the flag", async () => {
+    const endpoint = await mount("open", 50);
+    calls.length = 0;
+    await goToLift(endpoint, 0);
+    await goToLift(endpoint, 10000);
+    expect(calls.map((c) => c.action)).toEqual([
+      "cover.open_cover",
+      "cover.close_cover",
+    ]);
+  });
+
+  it("keeps open/close on a cover without set_position", async () => {
+    const endpoint = await mount("open", 100, asPosition, {
+      supportedFeatures: BINARY_COVER,
+    });
+    calls.length = 0;
+    await downOrClose(endpoint);
+    await drive(endpoint, "closed", 0, { supportedFeatures: BINARY_COVER });
+    await upOrOpen(endpoint);
+    expect(calls.map((c) => c.action)).toEqual([
+      "cover.close_cover",
+      "cover.open_cover",
+    ]);
+  });
+
+  it("follows the per-entity swap", async () => {
+    const endpoint = await mount("open", 50, {
+      ...asPosition,
+      coverSwapOpenClose: true,
+    });
+    calls.length = 0;
+    await goToLift(endpoint, 10000);
+    expect(sent()).toEqual([["cover.set_cover_position", 100]]);
+  });
+
+  it("HA-percentage flag, the open completes on the HA end", async () => {
+    setFeatureFlags({ coverUseHomeAssistantPercentage: true });
+    const endpoint = await mount("closed", 0, asPosition); // stored 0
+    const cap = subscribe(endpoint);
+    calls.length = 0;
+
+    await goToLift(endpoint, 0);
+    expect(sent()).toEqual([["cover.set_cover_position", 100]]);
+    await drive(endpoint, "open", 100); // stored 10000, not the target 0
+
+    expect(cap.ops).toEqual([Opening, Stopped]);
+    expect(state(endpoint).targetPositionLiftPercent100ths).toBe(10000);
+  });
+});

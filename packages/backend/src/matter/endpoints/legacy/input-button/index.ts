@@ -3,10 +3,9 @@ import { OnOffPlugInUnitDevice } from "@matter/main/devices";
 import { BasicInformationServer } from "../../../behaviors/basic-information-server.js";
 import { HomeAssistantEntityBehavior } from "../../../behaviors/home-assistant-entity-behavior.js";
 import { IdentifyServer } from "../../../behaviors/identify-server.js";
-import { OnOffServer } from "../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../behaviors/on-off-server.js";
 
-// No Lighting feature, same conformance reason as automation (#182).
-const InputButtonOnOffServer = OnOffServer({
+const InputButtonOnOffServer = PlugOnOffServer({
   isOn: () => false,
   turnOn: () => ({
     action: "input_button.press",

@@ -22,6 +22,7 @@ export interface MappingProfileEntry {
   readonly disableBatteryMapping?: boolean;
   readonly roomEntities?: string[];
   readonly disableLockPin?: boolean;
+  readonly lockWithoutPin?: boolean;
   readonly lockUsercodeService?: string;
   readonly lockUsercodeSlot?: number;
   readonly lockPinMinLength?: number;
@@ -46,6 +47,7 @@ export interface MappingProfileEntry {
   readonly fanRestoreSpeedOnPowerOn?: boolean;
   readonly valetudoIdentifier?: string;
   readonly coverSwapOpenClose?: boolean;
+  readonly coverOpenCloseAsPosition?: boolean;
   readonly coverSliderDebounceMs?: number;
   readonly fanSliderDebounceMs?: number;
   readonly disableClimateOnOff?: boolean;

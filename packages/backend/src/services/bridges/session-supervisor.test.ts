@@ -4,16 +4,18 @@ import type { BridgeDataProvider } from "./bridge-data-provider.js";
 import { DEFAULT_SESSION_MAX_AGE_HOURS } from "./session-rotation.js";
 import { SessionSupervisor } from "./session-supervisor.js";
 
-// The two bridges deliberately differ in one place: with no configured max
-// age, the aggregator bridge keeps rotation off (one controller session
-// holds many devices) while server mode rotates after the default hours.
-// The supervisor takes that as a parameter, pin both sides.
+// With no configured max age both bridge types keep rotation off (#287).
+// Server mode passes DEFAULT_SESSION_MAX_AGE_HOURS, the aggregator 0.
 
-function supervisor(defaultHours: number, sessionMaxAgeHours?: number) {
+function supervisor(
+  defaultHours: number,
+  sessionMaxAgeHours?: number,
+  env = {} as Environment,
+) {
   const warn = vi.fn();
   const sup = new SessionSupervisor(
     { debug() {}, info() {}, warn, error() {} } as unknown as Logger,
-    { env: {} as Environment },
+    { env },
     {
       id: "b",
       featureFlags: {},
@@ -26,7 +28,7 @@ function supervisor(defaultHours: number, sessionMaxAgeHours?: number) {
     (
       sup as unknown as { readSessionMaxAgeHours(): number }
     ).readSessionMaxAgeHours();
-  return { read, warn };
+  return { sup, read, warn };
 }
 
 describe("SessionSupervisor rotation default", () => {
@@ -39,28 +41,74 @@ describe("SessionSupervisor rotation default", () => {
     expect(supervisor(0).read()).toBe(0);
   });
 
-  it("server mode: unset env falls back to the default hours", () => {
+  it("server mode: unset env keeps rotation off too", () => {
     delete process.env.HAMH_MATTER_SESSION_MAX_AGE_HOURS;
-    expect(supervisor(DEFAULT_SESSION_MAX_AGE_HOURS).read()).toBe(
-      DEFAULT_SESSION_MAX_AGE_HOURS,
-    );
+    expect(supervisor(DEFAULT_SESSION_MAX_AGE_HOURS).read()).toBe(0);
   });
 
-  it("garbage env warns and uses the side default", () => {
+  it("garbage env warns and keeps rotation off", () => {
     process.env.HAMH_MATTER_SESSION_MAX_AGE_HOURS = "nope";
-    const off = supervisor(0);
-    expect(off.read()).toBe(0);
-    expect(off.warn.mock.calls[0][0]).toContain("disabling session rotation");
-    const on = supervisor(DEFAULT_SESSION_MAX_AGE_HOURS);
-    expect(on.read()).toBe(DEFAULT_SESSION_MAX_AGE_HOURS);
-    expect(on.warn.mock.calls[0][0]).toContain(
-      `falling back to ${DEFAULT_SESSION_MAX_AGE_HOURS}h`,
-    );
+    const { read, warn } = supervisor(DEFAULT_SESSION_MAX_AGE_HOURS);
+    expect(read()).toBe(0);
+    expect(warn.mock.calls[0][0]).toContain("disabling session rotation");
   });
 
-  it("a configured value wins on both sides", () => {
+  it("a configured value or the env var still turns it on", () => {
     process.env.HAMH_MATTER_SESSION_MAX_AGE_HOURS = "nope";
     expect(supervisor(0, 12).read()).toBe(12);
     expect(supervisor(DEFAULT_SESSION_MAX_AGE_HOURS, 0).read()).toBe(0);
+    process.env.HAMH_MATTER_SESSION_MAX_AGE_HOURS = "6";
+    expect(supervisor(DEFAULT_SESSION_MAX_AGE_HOURS).read()).toBe(6);
+  });
+});
+
+describe("SessionSupervisor graceful close", () => {
+  // Real initiateClose runs the shutdown logic before it may defer the close.
+  function fakeSession() {
+    const order: string[] = [];
+    return {
+      order,
+      id: 7,
+      peerNodeId: 1n,
+      isClosing: false,
+      subscriptions: { size: 2 },
+      closeSubscriptions: vi.fn(async (_flush?: boolean) => {
+        order.push("subs");
+        return 2;
+      }),
+      initiateClose: vi.fn(async (logic?: () => Promise<void>) => {
+        await logic?.();
+        order.push("close");
+      }),
+      initiateForceClose: vi.fn(async () => {}),
+    };
+  }
+
+  function withSession(s: ReturnType<typeof fakeSession>) {
+    const env = { get: () => ({ sessions: [s] }) } as unknown as Environment;
+    return supervisor(0, 1, env).sup as unknown as {
+      sessionStartedAt: Map<number, number>;
+      maxSessionAgeMs: number;
+      rotateAgedSessions(): void;
+      closeActiveSessions(): Promise<void>;
+    };
+  }
+
+  it("age rotation flushes and closes subscriptions before the session", async () => {
+    const s = fakeSession();
+    const sup = withSession(s);
+    sup.maxSessionAgeMs = 60_000;
+    sup.sessionStartedAt.set(s.id, Date.now() - 120_000);
+    sup.rotateAgedSessions();
+    await vi.waitFor(() => expect(s.order).toEqual(["subs", "close"]));
+    expect(s.closeSubscriptions).toHaveBeenCalledWith(true);
+    expect(s.initiateForceClose).not.toHaveBeenCalled();
+  });
+
+  it("shutdown close does the same", async () => {
+    const s = fakeSession();
+    await withSession(s).closeActiveSessions();
+    expect(s.order).toEqual(["subs", "close"]);
+    expect(s.closeSubscriptions).toHaveBeenCalledWith(true);
   });
 });

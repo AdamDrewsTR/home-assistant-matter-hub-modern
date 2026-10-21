@@ -1,14 +1,18 @@
-import { Logger, type MaybePromise } from "@matter/general";
+import { Logger, type MaybePromise, Transaction } from "@matter/general";
 import { EndpointNumber, type FabricIndex, NodeId } from "@matter/main";
 import { WebRtcTransportProviderServer } from "@matter/main/behaviors";
-import type { WebRtcTransportProvider } from "@matter/main/clusters";
-import { StatusCode, StatusResponseError } from "@matter/main/types";
+import {
+  WebRtcTransportDefinitions,
+  type WebRtcTransportProvider,
+} from "@matter/main/clusters";
 import type { SecureSession } from "@matter/protocol";
 import { StreamUsage } from "@matter/types";
+import { CameraAvStreamServer } from "./av-stream-server.js";
 import {
   deliverAnswerDeferred,
   hasRequestor,
   registerRequestor,
+  sendEnd,
   unregisterRequestor,
 } from "./requestor-client.js";
 import type { WebRtcBridge } from "./webrtc-bridge.js";
@@ -35,11 +39,30 @@ function mintSessionId(): number {
 export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
   declare state: CameraWebRtcProviderServer.State;
 
+  override async initialize() {
+    await super.initialize();
+    // wait for the AV state lock, a snapshot invoke holds it while HA answers
+    const av = this.agent.get(CameraAvStreamServer);
+    this.reactTo(this.events.currentSessions$Changed, this.countAudioUse, {
+      offline: true,
+      lock: [av[Transaction.Resource.reference] as Transaction.Resource],
+    });
+  }
+
   override solicitOffer(
     request: WebRtcTransportProvider.SolicitOfferRequest,
   ): MaybePromise<WebRtcTransportProvider.SolicitOfferResponse> {
     const id = mintSessionId();
-    this.trackSession(id, request.streamUsage, request.originatingEndpointId);
+    const videoStreams = this.videoStreamsFor(request, request.streamUsage);
+    // startSession offers video only
+    const audioStreams: number[] = [];
+    this.trackSession(
+      id,
+      request.streamUsage,
+      request.originatingEndpointId,
+      videoStreams,
+      audioStreams,
+    );
     logger.info(
       `solicitOffer session=${id} (${this.state.entityId}), deferred offer`,
     );
@@ -55,85 +78,90 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
           `solicitOffer startSession failed for ${this.state.entityId}: ${errText(err)}`,
         ),
       );
-    return { webRtcSessionId: id, deferredOffer: true };
+    return {
+      webRtcSessionId: id,
+      deferredOffer: true,
+      ...echoStreamIds(request, videoStreams, audioStreams),
+    };
   }
 
-  override async provideOffer(
+  override provideOffer(
     request: WebRtcTransportProvider.ProvideOfferRequest,
-  ): Promise<WebRtcTransportProvider.ProvideOfferResponse> {
+  ): WebRtcTransportProvider.ProvideOfferResponse {
     const id = request.webRtcSessionId ?? mintSessionId();
+    const entityId = this.state.entityId;
     logger.info(
-      `provideOffer entry: entityId=${this.state.entityId} session=${id} (sdp ${request.sdp.length} chars)`,
+      `provideOffer entry: entityId=${entityId} session=${id} (sdp ${request.sdp.length} chars)`,
     );
-    if (request.webRtcSessionId == null) {
+    const isNew = request.webRtcSessionId == null;
+    const videoStreams = isNew
+      ? this.videoStreamsFor(
+          request,
+          request.streamUsage ?? StreamUsage.LiveView,
+        )
+      : this.reofferStreams(id, request);
+    const audioStreams = isNew
+      ? this.audioStreamsFor(
+          request,
+          request.streamUsage ?? StreamUsage.LiveView,
+          request.sdp,
+        )
+      : this.reofferAudioStreams(id, request);
+    if (isNew) {
       this.trackSession(
         id,
         request.streamUsage ?? StreamUsage.LiveView,
         request.originatingEndpointId ?? EndpointNumber(0),
+        videoStreams,
+        audioStreams,
       );
     }
     // Register the live session so we can invoke the answer back on the
     // controller's WebRtcTransportRequestor cluster once the bridge answers.
-    const requestorEndpoint =
-      request.originatingEndpointId ?? EndpointNumber(0);
     const session = (this.context as unknown as { session?: SecureSession })
       .session;
     if (session) {
       registerRequestor(id, {
         session,
-        requestorEndpoint,
+        requestorEndpoint: request.originatingEndpointId ?? EndpointNumber(0),
         env: this.env,
         // The bridge instance scopes this session to its camera plugin.
         owner: this.state.bridge,
       });
     }
-    let answerSdp: string;
-    try {
-      answerSdp = await this.state.bridge.acceptControllerOffer(
-        id,
-        this.state.entityId,
-        request.sdp,
-        {
-          iceServers: request.iceServers,
-          iceTransportPolicy: request.iceTransportPolicy,
-        },
-      );
-    } catch (err) {
-      const message = errText(err);
-      logger.info(
-        `provideOffer failed for ${this.state.entityId} session=${id}: ${message}`,
-      );
-      // Drop the half-open session we optimistically tracked.
-      unregisterRequestor(id);
-      this.state.currentSessions = this.state.currentSessions.filter(
-        (s) => s.id !== id,
-      );
-      throw new StatusResponseError(
-        `WebRTC offer failed: ${message}`,
-        StatusCode.Failure,
-      );
-    }
-    logger.info(
-      `provideOffer answer computed for ${this.state.entityId} session=${id} (${answerSdp.length} chars); delivering via requestor`,
-    );
-    // Deliver AFTER this handler returns. The answer SDP already embeds our
-    // gathered host candidates (werift blocks on ICE gathering in
-    // setLocalDescription), no ICE trickle needed. No agent context survives
-    // the timer, so capture plain values.
+    // Answer now and negotiate after the commit. Pulling HA's stream and
+    // gathering ICE takes seconds, CHIP based controllers only wait about 2 s
+    // for an invoke response; the answer SDP follows on the requestor.
     const bridge = this.state.bridge;
-    const state = this.state;
-    deliverAnswerDeferred(id, answerSdp, async () => {
+    const endpoint = this.endpoint;
+    const ice = {
+      iceServers: request.iceServers,
+      iceTransportPolicy: request.iceTransportPolicy,
+    };
+    const offerSdp = request.sdp;
+    const cleanup = async () => {
       await bridge.endSession(id).catch(() => {});
       unregisterRequestor(id);
+      // this command's state expires with its transaction, prune in a new one
       try {
-        state.currentSessions = state.currentSessions.filter(
-          (s) => s.id !== id,
-        );
-      } catch {
+        await endpoint.act((agent) => {
+          const { state } = agent.get(CameraWebRtcProviderServer);
+          state.currentSessions = state.currentSessions.filter(
+            (s) => s.id !== id,
+          );
+        });
+      } catch (err) {
         // endpoint already disposed, nothing left to prune
+        logger.debug(`session=${id} not pruned (${entityId}): ${errText(err)}`);
       }
-    });
-    return { webRtcSessionId: id };
+    };
+    this.context.transaction.onFinalize(() =>
+      answerOffer(id, entityId, bridge, offerSdp, ice, cleanup),
+    );
+    return {
+      webRtcSessionId: id,
+      ...echoStreamIds(request, videoStreams, audioStreams),
+    };
   }
 
   override provideAnswer(
@@ -177,10 +205,82 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
     );
   }
 
+  // The streams a request names (VideoStreams, or the older VideoStreamID),
+  // else one picked or allocated for its usage.
+  private videoStreamsFor(
+    request: { videoStreamId?: number | null; videoStreams?: number[] },
+    streamUsage: StreamUsage,
+  ): number[] {
+    if (request.videoStreams?.length) return request.videoStreams;
+    if (request.videoStreamId != null) return [request.videoStreamId];
+    return [this.agent.get(CameraAvStreamServer).videoStreamFor(streamUsage)];
+  }
+
+  // A re-offer keeps the streams of the session it renegotiates.
+  private reofferStreams(
+    id: number,
+    request: { videoStreamId?: number | null; videoStreams?: number[] },
+  ): number[] {
+    if (request.videoStreams?.length) return request.videoStreams;
+    if (request.videoStreamId != null) return [request.videoStreamId];
+    return (
+      this.state.currentSessions.find((s) => s.id === id)?.videoStreams ?? []
+    );
+  }
+
+  // The audio streams a request names, checked against the allocated ones. Null
+  // asks for a stream to be assigned or created. A new offer naming none still
+  // gets HA's audio when its SDP has an audio m-line: SmartThings live view
+  // (#373) sends no audio id and plays the sound, the spec only says should
+  // not. Both list the usage's stream if one exists but never allocate: a
+  // snapshot invoke can hold the AV state and the write would fail the offer.
+  private audioStreamsFor(
+    request: { audioStreamId?: number | null; audioStreams?: number[] },
+    streamUsage: StreamUsage,
+    sdp: string,
+  ): number[] {
+    const av = this.agent.get(CameraAvStreamServer);
+    const named = request.audioStreams?.length
+      ? request.audioStreams
+      : request.audioStreamId != null
+        ? [request.audioStreamId]
+        : undefined;
+    if (named) {
+      av.checkAudioStreams(named);
+      return named;
+    }
+    const existing =
+      request.audioStreamId === null || /^m=audio/m.test(sdp)
+        ? av.audioStreamOf(streamUsage)
+        : undefined;
+    return existing === undefined ? [] : [existing];
+  }
+
+  private reofferAudioStreams(
+    id: number,
+    request: { audioStreamId?: number | null; audioStreams?: number[] },
+  ): number[] {
+    if (request.audioStreams?.length) return request.audioStreams;
+    if (request.audioStreamId != null) return [request.audioStreamId];
+    return (
+      this.state.currentSessions.find((s) => s.id === id)?.audioStreams ?? []
+    );
+  }
+
+  private countAudioUse() {
+    this.agent
+      .get(CameraAvStreamServer)
+      .countAudioUse(
+        this.state.currentSessions.flatMap((s) => s.audioStreams ?? []),
+      );
+  }
+
   private trackSession(
     id: number,
     streamUsage: StreamUsage,
     peerEndpointId: EndpointNumber,
+    videoStreams: number[],
+    audioStreams: number[],
   ): void {
     // Commands run online, so a session exists; read it structurally because
     // the public context type also covers the offline case.
@@ -204,11 +304,67 @@ export class CameraWebRtcProviderServer extends WebRtcTransportProviderServer {
         peerNodeId: session?.peerNodeId ?? NodeId(0),
         peerEndpointId,
         streamUsage,
+        // Matter 1.5 needs at least one stream list, or the write fails with
+        // ConstraintError and the controller never gets an answer
+        videoStreams,
+        videoStreamId: videoStreams[0],
+        ...(audioStreams.length
+          ? { audioStreams, audioStreamId: audioStreams[0] }
+          : {}),
         metadataEnabled: false,
         fabricIndex,
       },
     ];
   }
+}
+
+// A request with the older VideoStreamID/AudioStreamID fields gets them back
+// in the response.
+function echoStreamIds(
+  request: {
+    videoStreamId?: number | null;
+    audioStreamId?: number | null;
+  },
+  videoStreams: number[],
+  audioStreams: number[],
+): { videoStreamId?: number | null; audioStreamId?: number | null } {
+  return {
+    ...(request.videoStreamId === undefined
+      ? {}
+      : { videoStreamId: videoStreams[0] ?? null }),
+    ...(request.audioStreamId === undefined
+      ? {}
+      : { audioStreamId: audioStreams[0] ?? null }),
+  };
+}
+
+// Pull HA's stream and answer the controller's offer over the requestor. When
+// HA can't deliver, tell the controller with End so it stops waiting.
+async function answerOffer(
+  id: number,
+  entityId: string,
+  bridge: WebRtcBridge,
+  offerSdp: string,
+  ice: Parameters<WebRtcBridge["acceptControllerOffer"]>[3],
+  cleanup: () => Promise<void>,
+): Promise<void> {
+  let answerSdp: string;
+  try {
+    answerSdp = await bridge.acceptControllerOffer(id, entityId, offerSdp, ice);
+  } catch (err) {
+    logger.info(
+      `provideOffer failed for ${entityId} session=${id}: ${errText(err)}`,
+    );
+    await sendEnd(id, WebRtcTransportDefinitions.WebRtcEndReason.NoUserMedia);
+    await cleanup();
+    return;
+  }
+  logger.info(
+    `provideOffer answer computed for ${entityId} session=${id} (${answerSdp.length} chars); delivering via requestor`,
+  );
+  // The answer SDP already embeds our gathered candidates (werift blocks on
+  // ICE gathering in setLocalDescription), no ICE trickle needed.
+  deliverAnswerDeferred(id, answerSdp, cleanup);
 }
 
 function errText(err: unknown): string {

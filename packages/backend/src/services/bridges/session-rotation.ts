@@ -5,7 +5,8 @@
 
 import type { BridgeFeatureFlags } from "@home-assistant-matter-hub/common";
 
-export const DEFAULT_SESSION_MAX_AGE_HOURS = 4;
+// 0 = off, age rotation is opt-in on every bridge (#287).
+export const DEFAULT_SESSION_MAX_AGE_HOURS = 0;
 export const SESSION_MAX_AGE_HOURS_RANGE = { min: 1, max: 168 };
 export const ROTATION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 

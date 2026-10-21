@@ -7,7 +7,8 @@ import type {
 } from "@home-assistant-matter-hub/common";
 import { Environment, VariableService } from "@matter/general";
 import { Endpoint, VendorId } from "@matter/main";
-import { ServerNode } from "@matter/main/node";
+import { PowerSource } from "@matter/main/clusters";
+import { DeviceTypeConformanceService, ServerNode } from "@matter/main/node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BridgeDataProvider } from "../../../../../services/bridges/bridge-data-provider.js";
 import { EntityStateProvider } from "../../../../../services/bridges/entity-state-provider.js";
@@ -24,11 +25,13 @@ const ELECTRICAL_METER = 0x0514; // 1300
 const ELECTRICAL_SENSOR = 0x0510; // 1296
 const BRIDGED_NODE = 0x0013; // 19
 const SOLAR_POWER = 0x0017; // 23
+const POWER_SOURCE = 0x0011; // 17
 
 let dir: string;
 let env: Environment;
 let counter = 0;
 let server: ServerNode | undefined;
+let endpoint: Endpoint;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "hamh-electrical-meter-"));
@@ -128,7 +131,7 @@ async function bringUp(
   });
   const aggregator = new AggregatorEndpoint("aggregator");
   await server.add(aggregator);
-  const endpoint = new Endpoint(type, { id: "electrical-meter" });
+  endpoint = new Endpoint(type, { id: "electrical-meter" });
   await aggregator.add(endpoint);
 
   const snapshot: Snapshot = {
@@ -163,6 +166,16 @@ async function bringUp(
     snapshot.dynamicPowerFlow = topology?.dynamicPowerFlow === true;
   });
   return snapshot;
+}
+
+// Device type violations of the mounted endpoint.
+function violations() {
+  const verdict = server!.env
+    .get(DeviceTypeConformanceService)
+    .validateNodeScope(server!, { refuse: false });
+  return (verdict.get(endpoint) ?? []).map(
+    (v) => `${v.kind} ${v.requirement}: ${v.detail}`,
+  );
 }
 
 describe("electrical meter bring-up (#419 seeding)", () => {
@@ -202,11 +215,11 @@ describe("electrical meter bring-up (#419 seeding)", () => {
     );
 
     expect(snapshot.hasPowerTopology).toBe(true);
-    expect(snapshot.treeTopology).toBe(true);
+    expect(snapshot.treeTopology).toBe(false);
     expect(snapshot.nodeTopology).toBe(false);
     // NODE/TREE/SET are a choice, and DYNPW pulls in attributes nothing seeds,
-    // so the whole map is pinned instead of just the tree bit.
-    expect(snapshot.setTopology).toBe(false);
+    // so the whole map is pinned instead of just the set bit.
+    expect(snapshot.setTopology).toBe(true);
     expect(snapshot.dynamicPowerFlow).toBe(false);
   });
 
@@ -218,5 +231,42 @@ describe("electrical meter bring-up (#419 seeding)", () => {
 
     expect(snapshot.deviceTypes).toContain(SOLAR_POWER);
     expect(snapshot.deviceTypes).not.toContain(ELECTRICAL_METER);
+  });
+
+  // SolarPower needs a wired PowerSource tagged Grid and an ElectricalSensor
+  // with Voltage, ActiveCurrent and ExportedEnergy. Nothing maps them, so null.
+  it("gives SolarPower the components its device type requires", async () => {
+    const snapshot = await bringUp(
+      sensorEntity("sensor.pv_energy", "12.5", "energy", "kWh"),
+      { entityId: "sensor.pv_energy", matterDeviceType: "solar_power" },
+    );
+
+    expect(snapshot.deviceTypes).toEqual([
+      SOLAR_POWER,
+      ELECTRICAL_SENSOR,
+      POWER_SOURCE,
+      BRIDGED_NODE,
+    ]);
+    expect(snapshot.cumulativeEnergy).toBe(12_500_000);
+    // biome-ignore lint/suspicious/noExplicitAny: read cluster state
+    const state = endpoint.state as any;
+    expect(state.powerSource.featureMap.wired).toBe(true);
+    expect(state.powerSource.featureMap.battery).toBe(false);
+    expect(state.powerSource.wiredCurrentType).toBe(
+      PowerSource.WiredCurrentType.Ac,
+    );
+    expect(state.powerSource.endpointList).toEqual([endpoint.number]);
+    expect(state.descriptor.tagList).toEqual([
+      { mfgCode: null, namespaceId: 0x0f, tag: 0x01 },
+    ]);
+    expect(state.electricalPowerMeasurement.voltage).toBeNull();
+    expect(state.electricalPowerMeasurement.activeCurrent).toBeNull();
+    expect(state.electricalEnergyMeasurement.featureMap.exportedEnergy).toBe(
+      true,
+    );
+    expect(
+      state.electricalEnergyMeasurement.cumulativeEnergyExported,
+    ).toBeNull();
+    expect(violations()).toEqual([]);
   });
 });

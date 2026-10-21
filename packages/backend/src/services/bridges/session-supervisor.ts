@@ -68,6 +68,24 @@ const SHUTDOWN_SESSION_CLOSE_TIMEOUT_MS = 2_500;
 // records, so poll and re-announce when the set moves (#415).
 const MDNS_ADDRESS_CHECK_INTERVAL_MS = 60_000;
 
+// Close the subscriptions first, the way matter.js closes its own sessions
+// gracefully. A close deferred by open exchanges then leaves no window where
+// they keep reporting on another session of the same peer (#287).
+function closeGracefully(
+  s: {
+    initiateClose(shutdownLogic?: () => Promise<void>): Promise<void>;
+    closeSubscriptions(flush?: boolean): Promise<number>;
+    initiateForceClose(context: { cause: Error }): Promise<void>;
+  },
+  forceReason: string,
+): Promise<void> {
+  return s
+    .initiateClose(async () => {
+      await s.closeSubscriptions(true);
+    })
+    .catch(() => s.initiateForceClose({ cause: new Error(forceReason) }));
+}
+
 // Everything a bridge does to its controller sessions once the node runs:
 // diagnostics, stale and dead session cleanup, rotation, the wedge watchdog
 // and the mDNS address watch. Bridge and ServerModeBridge carried this twice,
@@ -452,17 +470,9 @@ export class SessionSupervisor {
           this.log.info(
             `Closing superseded session ${s.id} (peer ${s.peerNodeId}, ${s.subscriptions.size} subs, quiet ${quietSec}s), replaced by session ${newSession.id}`,
           );
-          closes.push(
-            s.initiateClose().catch(() =>
-              s.initiateForceClose({
-                cause: new Error("superseded session, forcing"),
-              }),
-            ),
-          );
+          closes.push(closeGracefully(s, "superseded session, forcing"));
         }
-        if (closes.length > 0) {
-          Promise.allSettled(closes).then(() => this.triggerMdnsReAnnounce());
-        }
+        void Promise.allSettled(closes);
       };
       this.sessionDeletedHandler = (session: {
         id: number;
@@ -647,7 +657,7 @@ export class SessionSupervisor {
           break;
         }
         this.log.warn(
-          `Closing stale session ${s.id} (peer ${s.peerNodeId}, no subscriptions for ${deadSessionTimeoutMs(this.dataProvider.featureFlags) / 1000}s, no traffic for ${idleSec}s)`,
+          `Closing stale session ${s.id} (peer ${s.peerNodeId}, no subscriptions, no traffic for ${idleSec}s)`,
         );
         s.initiateClose()
           .catch(() => {
@@ -656,8 +666,7 @@ export class SessionSupervisor {
               cause: new Error("graceful close failed, forcing"),
             });
           })
-          .catch(() => {})
-          .finally(() => this.triggerMdnsReAnnounce());
+          .catch(() => {});
         break;
       }
     } catch {
@@ -695,7 +704,7 @@ export class SessionSupervisor {
           continue;
         }
         this.log.warn(
-          `Closing dead session ${s.id} (peer ${s.peerNodeId}, no subscriptions for ${deadSessionTimeoutMs(this.dataProvider.featureFlags) / 1000}s, no traffic for ${idleSec}s)`,
+          `Closing dead session ${s.id} (peer ${s.peerNodeId}, no subscriptions, no traffic for ${idleSec}s)`,
         );
         closes.push(
           s.initiateClose().catch(() => {
@@ -706,9 +715,7 @@ export class SessionSupervisor {
           }),
         );
       }
-      if (closes.length > 0) {
-        Promise.allSettled(closes).then(() => this.triggerMdnsReAnnounce());
-      }
+      void Promise.allSettled(closes);
       if (kept > 0 && !this.deadSessionTimer) {
         // Some peers are still active; re-check after another interval.
         this.deadSessionTimer = setTimeout(() => {
@@ -722,9 +729,9 @@ export class SessionSupervisor {
   }
 
   // Close every active session on shutdown so each controller is told to drop
-  // its CASE session instead of being left with a stale one. Mirrors the
-  // dead-session close, but covers all sessions and waits (capped) so the
-  // close actually reaches the peer before the server is canceled.
+  // its CASE session instead of being left with a stale one. Subscriptions
+  // are closed first like in rotation, and the wait (capped) lets the close
+  // reach the peer before the server is canceled.
   async closeActiveSessions() {
     try {
       const sessionManager = this.server.env.get(SessionManager);
@@ -733,14 +740,7 @@ export class SessionSupervisor {
         if (s.isClosing) {
           continue;
         }
-        closes.push(
-          s.initiateClose().catch(() => {
-            // Graceful close failed (peer unreachable), force-close locally
-            return s.initiateForceClose({
-              cause: new Error("graceful close failed, forcing"),
-            });
-          }),
-        );
+        closes.push(closeGracefully(s, "graceful close failed, forcing"));
       }
       if (closes.length === 0) {
         return;
@@ -759,27 +759,6 @@ export class SessionSupervisor {
       }
     } catch {
       // SessionManager may be disposed
-    }
-  }
-
-  /**
-   * Force a fresh mDNS operational advertisement after session cleanup.
-   * matter.js DeviceAdvertiser only re-announces when a subscription is
-   * canceled BY THE PEER. When the server cancels after 3 delivery
-   * timeouts, no re-announcement happens and the controller may not
-   * realize it should reconnect (#266).
-   */
-  private triggerMdnsReAnnounce() {
-    try {
-      const advertiser = this.server.env.get(DeviceAdvertiser);
-      // restartAdvertisement re-sends the cached records for live fabrics but
-      // does not rebuild them; refreshOperationalAdvertisement (used by the
-      // address watch for #415) is what re-runs the address lookup. This path
-      // only needs the controller poked to reconnect, so keep it as is.
-      advertiser.restartAdvertisement();
-      this.log.info("Triggered mDNS re-announcement after session cleanup");
-    } catch {
-      // DeviceAdvertiser may not be available
     }
   }
 
@@ -856,9 +835,7 @@ export class SessionSupervisor {
     this.stopSessionRotation();
     const hours = this.readSessionMaxAgeHours();
     if (hours === 0) {
-      this.log.info(
-        "Session rotation disabled (HAMH_MATTER_SESSION_MAX_AGE_HOURS=0)",
-      );
+      this.log.info("Session rotation off (no max age set)");
       return;
     }
     this.maxSessionAgeMs = hours * 60 * 60 * 1000;
@@ -959,17 +936,9 @@ export class SessionSupervisor {
           `Wedge watchdog: rotating session ${s.id}, no inbound interaction for ${silenceMin}min`,
         );
         this.wedgeLastRotatedAt.set(s, now);
-        closes.push(
-          s.initiateClose().catch(() => {
-            return s.initiateForceClose({
-              cause: new Error("wedge watchdog, forcing"),
-            });
-          }),
-        );
+        closes.push(closeGracefully(s, "wedge watchdog, forcing"));
       }
-      if (closes.length > 0) {
-        Promise.allSettled(closes).then(() => this.triggerMdnsReAnnounce());
-      }
+      void Promise.allSettled(closes);
     } catch {
       // SessionManager may be disposed
     }
@@ -1053,9 +1022,8 @@ export class SessionSupervisor {
     });
   }
 
-  // Env var unset or garbage falls back to defaultMaxAgeHours: 0 on the
-  // aggregator bridge (rotation opt-in, one controller session holds many
-  // devices), DEFAULT_SESSION_MAX_AGE_HOURS in server mode.
+  // Env var unset or garbage falls back to defaultMaxAgeHours, 0 (rotation
+  // opt-in) on both bridge types.
   private readSessionMaxAgeHours(): number {
     const { min, max } = SESSION_MAX_AGE_HOURS_RANGE;
     const fromConfig = this.dataProvider.sessionMaxAgeHours;
@@ -1107,17 +1075,9 @@ export class SessionSupervisor {
         this.log.info(
           `Rotating session ${s.id} (peer ${s.peerNodeId}, age ${ageMin}min, subs ${s.subscriptions.size})`,
         );
-        closes.push(
-          s.initiateClose().catch(() => {
-            return s.initiateForceClose({
-              cause: new Error("session rotation, forcing"),
-            });
-          }),
-        );
+        closes.push(closeGracefully(s, "session rotation, forcing"));
       }
-      if (closes.length > 0) {
-        Promise.allSettled(closes).then(() => this.triggerMdnsReAnnounce());
-      }
+      void Promise.allSettled(closes);
     } catch {
       // SessionManager may be disposed
     }

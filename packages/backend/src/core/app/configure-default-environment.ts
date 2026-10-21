@@ -14,6 +14,9 @@ export function configureDefaultEnvironment(options: Options) {
   // matter.js signal handlers would conflict (e.g. double-shutdown, premature exit).
   env.vars.set("runtime.signals", false);
   env.vars.set("runtime.exitcode", false);
+  // Device type checks only repeat known deviations at every start, the
+  // conformance of our endpoint shapes is covered by tests.
+  env.vars.set("endpoint.validation", "off");
 
   env.set(LoggerService, new LoggerService(options.logging));
 

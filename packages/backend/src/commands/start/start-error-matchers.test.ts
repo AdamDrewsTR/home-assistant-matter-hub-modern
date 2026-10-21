@@ -11,6 +11,10 @@ const BRIDGE_ID = "ed5b4f8d042e4599b833f21da4ededba";
 // dot and no cluster segment. That message reached process.exit(1).
 const AGGREGATOR_INIT = `Error initializing part ${BRIDGE_ID}.aggregator`;
 
+// matter.js 0.18 reworded the 0.17 "Invalid intervalMs" timer error.
+const TIMER_INTERVAL_018 =
+  'Invalid interval for timer "Subscription": NaN; it must be finite and not negative';
+
 // Fatals outside the aggregator subtree. Swallowing any of these leaves the
 // process running as a zombie instead of exiting for a supervisor restart.
 const ROOT_FATALS = [
@@ -40,6 +44,7 @@ describe("shouldSuppressError", () => {
       "Connection lost",
       "Endpoint storage inaccessible",
       "Invalid intervalMs",
+      TIMER_INTERVAL_018,
       "generalDiagnostics",
       "Behaviors have errors",
       "TransactionDestroyedError",
@@ -80,6 +85,7 @@ describe("isIsolatableError", () => {
   it("keeps isolating the messages it already matched", () => {
     for (const msg of [
       "Invalid intervalMs",
+      TIMER_INTERVAL_018,
       "Behaviors have errors",
       "TransactionDestroyedError",
       "DestroyedDependencyError",

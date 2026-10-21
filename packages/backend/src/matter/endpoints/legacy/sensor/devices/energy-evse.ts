@@ -1,13 +1,24 @@
 import { Logger } from "@matter/general";
 import {
   DescriptorServer,
+  DeviceEnergyManagementServer,
   EnergyEvseServer as EvseBase,
   EnergyEvseModeServer as EvseModeBase,
   PowerSourceServer as PowerSourceBase,
 } from "@matter/main/behaviors";
-import { EnergyEvse, EnergyEvseMode, PowerSource } from "@matter/main/clusters";
+import {
+  DeviceEnergyManagement,
+  EnergyEvse,
+  EnergyEvseMode,
+  ModeBase,
+  PowerSource,
+} from "@matter/main/clusters";
 import { EnergyEvseDevice } from "@matter/main/devices";
-import { DeviceTypeId } from "@matter/main/types";
+import {
+  DeviceTypeId,
+  StatusCode,
+  StatusResponseError,
+} from "@matter/main/types";
 import { EntityStateProvider } from "../../../../../services/bridges/entity-state-provider.js";
 import { HomeAssistantActions } from "../../../../../services/home-assistant/home-assistant-actions.js";
 import { applyPatchState } from "../../../../../utils/apply-patch-state.js";
@@ -48,12 +59,19 @@ function clearEvseChargingTimer(endpoint: object) {
   }
 }
 
+// PREF is mandatory in the cluster and already on at runtime; with() only
+// brings in its typing.
+const EvsePrefBase = EvseBase.with("ChargingPreferences");
+
 // Drives the EnergyEvse cluster from the mapped charger STATUS entity and
 // implements the EnableCharging / Disable commands (the default
 // EnergyEvseServer leaves them unimplemented, so without these overrides the
 // acceptedCommandList would stay empty). Charging is started/stopped through
 // the mapped switch, and the charge current through the mapped number entity.
-class EvseStatusServer extends EvseBase {
+// biome-ignore lint/correctness/noUnusedVariables: merged with the State namespace below
+class EvseStatusServer extends EvsePrefBase {
+  declare state: EvseStatusServer.State;
+
   override async initialize() {
     await super.initialize();
     const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
@@ -249,6 +267,58 @@ class EvseStatusServer extends EvseBase {
       );
     }
   }
+
+  // PREF is mandatory for the cluster. HAMH only runs Manual mode and can't
+  // schedule charging in HA, so the targets are just kept for GetTargets and
+  // the NextCharge* attributes stay null. A day sent again replaces its targets.
+  override setTargets({
+    chargingTargetSchedules,
+  }: EnergyEvse.SetTargetsRequest) {
+    const days = new Set<string>();
+    for (const { dayOfWeekForSequence } of chargingTargetSchedules) {
+      for (const [day, on] of Object.entries(dayOfWeekForSequence)) {
+        if (!on) continue;
+        if (days.has(day)) {
+          throw new StatusResponseError(
+            `${day} is in more than one schedule`,
+            StatusCode.ConstraintError,
+          );
+        }
+        days.add(day);
+      }
+    }
+    const kept = this.state.chargingTargetSchedules.map((schedule) => ({
+      ...schedule,
+      dayOfWeekForSequence: Object.fromEntries(
+        Object.entries(schedule.dayOfWeekForSequence).map(([day, on]) => [
+          day,
+          !!on && !days.has(day),
+        ]),
+      ),
+    }));
+    this.state.chargingTargetSchedules = [
+      ...kept,
+      ...chargingTargetSchedules,
+    ].filter(
+      (schedule) =>
+        schedule.chargingTargets.length > 0 &&
+        Object.values(schedule.dayOfWeekForSequence).some(Boolean),
+    );
+  }
+
+  override getTargets() {
+    return { chargingTargetSchedules: this.state.chargingTargetSchedules };
+  }
+
+  override clearTargets() {
+    this.state.chargingTargetSchedules = [];
+  }
+}
+
+namespace EvseStatusServer {
+  export class State extends EvsePrefBase.State {
+    chargingTargetSchedules: EnergyEvse.ChargingTargetSchedule[] = [];
+  }
 }
 
 // supplyState and faultState are non-nullable enum8 without defaults, so the
@@ -262,20 +332,28 @@ const EvseStatusSeeded = EvseStatusServer.set({
   maximumChargeCurrent: MAX_CHARGE_CURRENT_MA,
 });
 
-// EnergyEvseMode is mandatory. The server asserts a Manual mode tag, so seed a
-// single Manual mode and select it. Features stay off (no charging preferences).
+// EnergyEvseMode is mandatory. The server asserts a Manual mode tag and
+// SupportedModes needs 2 to 255 entries, so Manual comes with a Time of Use
+// mode that is refused (no charging preferences behind it).
 // Modes count from 0: SmartThings addresses them by list position (#475).
+const TIME_OF_USE_MODE = 1;
+
 class EvseModeServer extends EvseModeBase {
   override async initialize() {
-    // A persisted currentMode from before the renumbering would fail the mount.
-    const modes = this.state.supportedModes;
-    if (
-      modes.length > 0 &&
-      !modes.some((m) => m.mode === this.state.currentMode)
-    ) {
-      this.state.currentMode = modes[0].mode;
-    }
+    // A persisted currentMode from before the renumbering (Manual was 1)
+    // would fail the mount or land on Time of Use.
+    this.state.currentMode = 0;
     await super.initialize();
+  }
+
+  override changeToMode(request: ModeBase.ChangeToModeRequest) {
+    if (request.newMode === TIME_OF_USE_MODE) {
+      return {
+        status: ModeBase.ModeChangeStatus.GenericFailure,
+        statusText: "Only Manual is supported",
+      };
+    }
+    return super.changeToMode(request);
   }
 }
 
@@ -285,6 +363,11 @@ const EvseModeSeeded = EvseModeServer.set({
       label: "Manual",
       mode: 0,
       modeTags: [{ value: EnergyEvseMode.ModeTag.Manual }],
+    },
+    {
+      label: "Time of Use",
+      mode: TIME_OF_USE_MODE,
+      modeTags: [{ value: EnergyEvseMode.ModeTag.TimeOfUse }],
     },
   ],
   currentMode: 0,
@@ -314,11 +397,50 @@ const EvsePowerSource = EvsePowerSourceServer.set({
   wiredCurrentType: PowerSource.WiredCurrentType.Ac,
 });
 
+// EnergyEvse requires a DeviceEnergyManagement component with PFR. HA has no
+// charging forecast and nothing drives a DEM power adjustment, so the
+// forecast stays null and no adjustment feature is claimed.
+class EvseEnergyManagementServer extends DeviceEnergyManagementServer.with(
+  "PowerForecastReporting",
+) {
+  override async initialize() {
+    await super.initialize();
+    const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
+    this.update();
+    this.reactTo(homeAssistant.onChange, this.update, {
+      offline: true,
+      lock: true,
+    });
+  }
+
+  private update() {
+    const { isAvailable } = this.agent.get(HomeAssistantEntityBehavior);
+    applyPatchState(this.state, {
+      esaState: isAvailable
+        ? DeviceEnergyManagement.EsaState.Online
+        : DeviceEnergyManagement.EsaState.Offline,
+    });
+  }
+}
+
+// HAMH knows the charge current range but not the mains voltage, so the power
+// range assumes 230 V single phase (mA x V = mW), like the CHIP evse-app.
+const NOMINAL_MAINS_V = 230;
+
+const EvseEnergyManagement = EvseEnergyManagementServer.set({
+  esaType: DeviceEnergyManagement.EsaType.Evse,
+  esaCanGenerate: false,
+  absMinPower: MIN_CHARGE_CURRENT_MA * NOMINAL_MAINS_V,
+  absMaxPower: CIRCUIT_CAPACITY_MA * NOMINAL_MAINS_V,
+  forecast: null,
+});
+
 // EnergyEvse (0x050C) plus the ElectricalSensor (0x0510) device type, since the
 // endpoint carries the measurement clusters (SmartThings needs each device type
-// listed to render them, #214). DescriptorServer must be mounted explicitly for
-// the deviceTypeList default below to apply; matter.js then appends the
-// cluster-derived types (PowerSource, BridgedNode).
+// listed to render them, #214), and its DeviceEnergyManagement (0x050D)
+// component. DescriptorServer must be mounted explicitly for the deviceTypeList
+// default below to apply; matter.js then appends the cluster-derived types
+// (PowerSource, BridgedNode).
 const EnergyEvseBase = EnergyEvseDevice.with(
   BasicInformationServer,
   IdentifyServer,
@@ -333,12 +455,14 @@ const EnergyEvseBase = EnergyEvseDevice.with(
   EnergyServer,
   // ElectricalSensor requires PowerTopology; matter.js does not enforce it.
   HaPowerTopologyServer,
+  EvseEnergyManagement,
   DescriptorServer,
 ).set({
   descriptor: {
     deviceTypeList: [
       { deviceType: DeviceTypeId(0x050c), revision: 2 },
       { deviceType: DeviceTypeId(0x0510), revision: 1 },
+      { deviceType: DeviceTypeId(0x050d), revision: 3 },
     ],
   },
 });
@@ -346,8 +470,5 @@ const EnergyEvseBase = EnergyEvseDevice.with(
 // EnergyEvse (0x050C) driven by a charger status entity, with the stage 1
 // measurement clusters folded onto the same endpoint.
 export function energyEvseType() {
-  // The spec also lists a DeviceEnergyManagement device type, but HA exposes no
-  // charging forecast/schedule to feed it honestly and every controller tested
-  // so far renders the EVSE without it, so it is deliberately omitted.
   return EnergyEvseBase;
 }

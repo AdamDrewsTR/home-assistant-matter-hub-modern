@@ -72,19 +72,18 @@ export const deviceClassMapping = (entity: HomeAssistantEntityState) => {
 
   // The Type has to agree with the feature map or controllers drop the device
   // (#304). Lift is always in it (see the cover endpoint), so a tilt-capable
-  // cover can only be Shutter or TiltBlindLift, and tilt-only never applies.
+  // cover can only be TiltBlindLift, and tilt-only never applies.
   const supportedFeatures = attributes(entity).supported_features ?? 0;
   const hasTilt = coverHasTilt(supportedFeatures);
   if (hasTilt) {
-    // Shutter covers both axes, and RollerShutter belongs to it.
-    if (mapping.type === WindowCovering.WindowCoveringType.Shutter) {
-      return mapping;
-    }
     // EndProductType has to belong to the Type, so the lift-only products
     // move to their tilting counterpart, and the rare rest stays Unknown.
+    // Matter 1.6.1 allows Shutter and RollerShutter only on one axis.
     const tiltProducts: Partial<
       Record<WindowCovering.EndProductType, WindowCovering.EndProductType>
     > = {
+      [WindowCovering.EndProductType.RollerShutter]:
+        WindowCovering.EndProductType.ExteriorVenetianBlind,
       [WindowCovering.EndProductType.InteriorBlind]:
         WindowCovering.EndProductType.InteriorBlind,
       [WindowCovering.EndProductType.CentralCurtain]:
@@ -258,13 +257,28 @@ const liftFallsBackToTilt = (agent: Agent): boolean => {
   return liftShouldUseTilt(supportedFeatures);
 };
 
-const openLiftAction = (agent: Agent) => ({
-  action: shouldSwapOpenClose(agent) ? "cover.close_cover" : "cover.open_cover",
-});
+// Per cover, open/close go out as set_cover_position 100/0 at the HA end the
+// open/close service would hit. Cover Time Based only stops on an open/close
+// while moving but reverses on a position (#512).
+const liftEndAction = (end: "open" | "close", agent: Agent) => {
+  const homeAssistant = agent.get(HomeAssistantEntityBehavior);
+  if (
+    homeAssistant.state.mapping?.coverOpenCloseAsPosition &&
+    supportsPositionControl(agent)
+  ) {
+    return {
+      action: "cover.set_cover_position",
+      data: { position: end === "open" ? 100 : 0 },
+    };
+  }
+  return { action: `cover.${end}_cover` };
+};
 
-const closeLiftAction = (agent: Agent) => ({
-  action: shouldSwapOpenClose(agent) ? "cover.open_cover" : "cover.close_cover",
-});
+const openLiftAction = (agent: Agent) =>
+  liftEndAction(shouldSwapOpenClose(agent) ? "close" : "open", agent);
+
+const closeLiftAction = (agent: Agent) =>
+  liftEndAction(shouldSwapOpenClose(agent) ? "open" : "close", agent);
 
 const setTiltPositionAction = (position: number, agent: Agent) => {
   // For binary tilt covers (no tilt position support), translate to open/close tilt

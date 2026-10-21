@@ -337,7 +337,7 @@ const featureFlagSchema: JSONSchema7 = {
     advertiseSpecVersion151: {
       title: "Advertise Matter 1.5.1 (Alexa pairing diagnostic)",
       description:
-        "Mask the Matter version identifiers as 1.5.1 instead of 1.6.0, in " +
+        "Mask the Matter version identifiers as 1.5.1 instead of 1.6.1, in " +
         "the BasicInformation attributes and the session parameters. The " +
         "data model itself stays 1.6. Only for diagnosing Alexa pairing " +
         "failures that stop right after the " +
@@ -383,18 +383,6 @@ const featureFlagSchema: JSONSchema7 = {
         "users whose devices go offline after a cancelled subscription (#386). " +
         "It shortens the offline window but cannot stop the controller from " +
         "rejecting the subscription. Default off.",
-      type: "boolean",
-      default: false,
-    },
-
-    omitEventsInPriming: {
-      title: "Omit Events From Priming (Google offline workaround)",
-      description:
-        "Omit stored StartUp and BootReason events from priming reports. " +
-        "Some Google controllers ack chunks but do not answer the final event " +
-        "chunk, aborting the subscription and leaving the device offline " +
-        "(#424). Live events still work. Off-spec; enable only for affected " +
-        "Google fabrics. Applies to the next subscription. Default off.",
       type: "boolean",
       default: false,
     },
@@ -531,9 +519,8 @@ export const bridgeConfigSchema: JSONSchema7 = {
       type: "number",
       description:
         "Rotate matter sessions older than this many hours so controllers " +
-        "re-establish and re-subscribe. Server Mode rotates every 4h by " +
-        "default; standard bridges only rotate when you set a value here. " +
-        "Set 0 to disable. Range 0 to 168. (#287)",
+        "re-establish and re-subscribe. Off unless you set a value here, " +
+        "on every bridge type. Set 0 to disable. Range 0 to 168. (#287)",
       minimum: 0,
       maximum: 168,
     },

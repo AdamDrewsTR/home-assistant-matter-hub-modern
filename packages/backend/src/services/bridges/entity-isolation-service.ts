@@ -6,7 +6,7 @@ const logger = Logger.get("EntityIsolation");
 
 /**
  * Tracks and isolates entities that throw at runtime so the bridge keeps
- * running when individual entities hit issues (e.g. Invalid intervalMs
+ * running when individual entities hit issues (e.g. Invalid interval
  * from subscription timing).
  */
 class EntityIsolationServiceImpl {
@@ -52,8 +52,8 @@ class EntityIsolationServiceImpl {
   }
 
   private classifyError(msg: string): string | null {
-    if (msg.includes("Invalid intervalMs")) {
-      return "Subscription timing error (Invalid intervalMs)";
+    if (msg.includes("Invalid interval")) {
+      return "Subscription timing error (Invalid interval)";
     }
     if (msg.includes("Behaviors have errors")) {
       return "Behavior initialization failure";

@@ -1,5 +1,5 @@
 import type { HomeAssistantEntityInformation } from "@home-assistant-matter-hub/common";
-import { Logger } from "@matter/general";
+import { Logger, Seconds, Time, type Timer } from "@matter/general";
 import { DoorLockServer as Base } from "@matter/main/behaviors";
 import { DoorLock } from "@matter/main/clusters";
 import {
@@ -523,12 +523,41 @@ export async function applyClearUser(
   );
 }
 
+// UnlockWithTimeout relocks through HA once the timeout is up. The timer lives
+// in matter.js' autoRelockTimer, which its DoorLockServer stops on close, and
+// every later lock command clears or replaces it.
+function scheduleRelock(
+  server: {
+    readonly internal: { autoRelockTimer?: Timer };
+    readonly env: Base["env"];
+    readonly agent: Base["agent"];
+    readonly state: { config: LockServerConfig };
+  },
+  seconds = 0,
+) {
+  const { internal } = server;
+  internal.autoRelockTimer?.stop();
+  internal.autoRelockTimer = undefined;
+  if (seconds === 0) {
+    return;
+  }
+  const actions = server.env.get(HomeAssistantActions);
+  const { entityId } = server.agent.get(HomeAssistantEntityBehavior);
+  const lock = server.state.config.lock(void 0, server.agent);
+  internal.autoRelockTimer = Time.getTimer("relock", Seconds(seconds), () =>
+    actions.call(lock, entityId),
+  ).start();
+}
+
 /**
- * Base DoorLock server, used when no PIN is configured for the entity.
+ * DoorLock server without PIN or User, for lockWithoutPin (#418).
  * Plain lock/unlock, no credential workflow.
  */
+// The bare matter.js DoorLockServer turns every feature on, PIN and User too.
+const PlainBase = Base.with();
+
 // biome-ignore lint/correctness/noUnusedVariables: Biome thinks this is unused, but it's used by the function below
-class LockServerBase extends Base {
+class LockServerBase extends PlainBase {
   declare state: LockServerBase.State;
 
   override async initialize() {
@@ -542,40 +571,119 @@ class LockServerBase extends Base {
     if (!entity.state || !entity.state.attributes) {
       return;
     }
-    applyPatchState(this.state, {
-      lockState: this.state.config.getLockState(entity.state, this.agent),
-      lockType: DoorLock.LockType.DeadBolt,
-      operatingMode: DoorLock.OperatingMode.Normal,
-      actuatorEnabled: true,
-      // Matter DoorLock bitmap: true = mode NOT supported (inverted semantics)
-      supportedOperatingModes: {
-        noRemoteLockUnlock: true,
-        normal: false,
-        passage: true,
-        privacy: true,
-        vacation: true,
-        // AlwaysSet (bits 5-15) is mandatory per the Matter spec; matter.js
-        // requires supportedOperatingModes.alwaysSet to be 2047.
-        alwaysSet: 2047,
-      },
-    });
+    applyPatchState(
+      this.state,
+      plainLockState(this.state.config, entity, this.agent),
+    );
   }
 
   override lockDoor() {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     const action = this.state.config.lock(void 0, this.agent);
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override unlockDoor() {
     const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
     const action = this.state.config.unlock(void 0, this.agent);
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    this.unlockDoor();
+    scheduleRelock(this, request.timeout);
   }
 }
 
 namespace LockServerBase {
-  export class State extends Base.State {
+  export class State extends PlainBase.State {
+    config!: LockServerConfig;
+  }
+}
+
+function plainLockState(
+  config: LockServerConfig,
+  entity: HomeAssistantEntityInformation,
+  agent: Base["agent"],
+) {
+  return {
+    lockState: config.getLockState(entity.state, agent),
+    lockType: DoorLock.LockType.DeadBolt,
+    operatingMode: DoorLock.OperatingMode.Normal,
+    actuatorEnabled: true,
+    // Matter DoorLock bitmap: true = mode NOT supported (inverted semantics)
+    supportedOperatingModes: {
+      noRemoteLockUnlock: true,
+      normal: false,
+      passage: true,
+      privacy: true,
+      vacation: true,
+      // AlwaysSet (bits 5-15) is mandatory per the Matter spec; matter.js
+      // requires supportedOperatingModes.alwaysSet to be 2047.
+      alwaysSet: 2047,
+    },
+  };
+}
+
+// Unbolting without PIN for locks with HA's OPEN feature and lockWithoutPin
+// set (#418). Unlock opens the latch and unbolt only unlocks, like the PIN
+// variant.
+const UnboltBase = Base.with("Unbolting");
+
+// biome-ignore lint/correctness/noUnusedVariables: used by the factory below
+class LockServerWithUnboltBase extends UnboltBase {
+  declare state: LockServerWithUnboltBase.State;
+
+  override async initialize() {
+    await super.initialize();
+    const homeAssistant = await this.agent.load(HomeAssistantEntityBehavior);
+    this.update(homeAssistant.entity);
+    this.reactTo(homeAssistant.onChange, this.update, { lock: true });
+  }
+
+  private update(entity: HomeAssistantEntityInformation) {
+    if (!entity.state || !entity.state.attributes) {
+      return;
+    }
+    applyPatchState(
+      this.state,
+      plainLockState(this.state.config, entity, this.agent),
+    );
+  }
+
+  override lockDoor() {
+    const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
+    homeAssistant.callAction(this.state.config.lock(void 0, this.agent));
+    scheduleRelock(this);
+  }
+
+  override unlockDoor() {
+    const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
+    const unlatch = this.state.config.unlatch;
+    homeAssistant.callAction(
+      unlatch
+        ? unlatch(void 0, this.agent)
+        : this.state.config.unlock(void 0, this.agent),
+    );
+    scheduleRelock(this);
+  }
+
+  override unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    this.unlockDoor();
+    scheduleRelock(this, request.timeout);
+  }
+
+  override unboltDoor() {
+    const homeAssistant = this.agent.get(HomeAssistantEntityBehavior);
+    homeAssistant.callAction(this.state.config.unlock(void 0, this.agent));
+    scheduleRelock(this);
+  }
+}
+
+namespace LockServerWithUnboltBase {
+  export class State extends UnboltBase.State {
     config!: LockServerConfig;
   }
 }
@@ -718,6 +826,7 @@ class LockServerWithPinBase extends PinCredentialBase {
     }
 
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest) {
@@ -757,6 +866,12 @@ class LockServerWithPinBase extends PinCredentialBase {
     }
 
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override async unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    await this.unlockDoor(request);
+    scheduleRelock(this, request.timeout);
   }
 
   override getUser(request: DoorLock.GetUserRequest): DoorLock.GetUserResponse {
@@ -832,12 +947,14 @@ namespace LockServerWithPinBase {
   }
 }
 
-/**
- * Creates a basic LockServer without PIN credential support.
- * Use this when no PIN is configured for the entity.
- */
+/** Plain lock/unlock without PIN, see LockServerBase. */
 export function LockServer(config: LockServerConfig) {
   return LockServerBase.set({ config });
+}
+
+/** Unbolting without PIN, see LockServerWithUnboltBase. */
+export function LockServerWithUnbolt(config: LockServerConfig) {
+  return LockServerWithUnboltBase.set({ config });
 }
 
 /**
@@ -852,7 +969,7 @@ export function LockServerWithPin(config: LockServerConfig) {
 /**
  * DoorLock server with PIN + Unbolting, for HA locks with the OPEN feature.
  * Unlock pulls the latch (lock.open), unbolt just retracts the bolt
- * (lock.unlock). Apple Home shows an "Unlatch" button when this is present.
+ * (lock.unlock). Apple Home only sends unlock, so it always unlatches (#514).
  */
 const PinCredentialUnboltBase = Base.with(
   "User",
@@ -964,6 +1081,7 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override async unlockDoor(request: DoorLock.UnlockDoorRequest) {
@@ -1005,6 +1123,12 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
+  }
+
+  override async unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+    await this.unlockDoor(request);
+    scheduleRelock(this, request.timeout);
   }
 
   override async unboltDoor(request: DoorLock.UnboltDoorRequest) {
@@ -1042,6 +1166,7 @@ class LockServerWithPinAndUnboltBase extends PinCredentialUnboltBase {
       action.data = { ...action.data, code: providedPin };
     }
     homeAssistant.callAction(action);
+    scheduleRelock(this);
   }
 
   override getUser(request: DoorLock.GetUserRequest): DoorLock.GetUserResponse {
@@ -1120,7 +1245,6 @@ namespace LockServerWithPinAndUnboltBase {
 /**
  * Creates a LockServer with PIN credential + Unbolting support.
  * Used when the HA lock entity supports the OPEN feature (unlatch).
- * Apple Home shows an "Unlatch" button when this is enabled.
  */
 export function LockServerWithPinAndUnbolt(config: LockServerConfig) {
   return LockServerWithPinAndUnboltBase.set({ config });

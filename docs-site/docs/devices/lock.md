@@ -43,7 +43,7 @@ After commissioning a lock with PIN support, Apple Home may show a one-time "Set
 
 ### Lock without a keypad
 
-For a lock without a keypad, turn on **Lock has no keypad** in the entity mapping (`lockWithoutPin`). HAMH then exposes the lock without the User and PIN features, so controllers offer no access code setup. Lock, unlock and unlatch keep working. Controllers can keep the old features cached; if the prompt stays, remove the lock in the controller app and pair again. Locks without this setting are unchanged. Available since v2.1.0-alpha.925.
+For a lock without a keypad, turn on **Lock has no keypad** in the entity mapping (`lockWithoutPin`). HAMH then exposes the lock without the User and PIN features, so controllers offer no access code setup. Lock, unlock and unlatch keep working. Controllers can keep the old features cached; if the prompt stays, remove the lock in the controller app and pair again. Locks without this setting are unchanged. Available since v2.0.59 (v2.1.0-alpha.925).
 
 ### Programming the physical lock (opt-in)
 

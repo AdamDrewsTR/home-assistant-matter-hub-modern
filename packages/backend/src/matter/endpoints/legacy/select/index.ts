@@ -9,7 +9,7 @@ import {
   buildSupportedModes,
   ModeSelectServer,
 } from "../../../behaviors/mode-select-server.js";
-import { OnOffServer } from "../../../behaviors/on-off-server.js";
+import { PlugOnOffServer } from "../../../behaviors/on-off-server.js";
 
 interface SelectAttributes {
   options?: string[];
@@ -51,7 +51,7 @@ function buildSelectSwitchType(action: string) {
     HomeAssistantEntityBehavior,
     GroupsServer,
     ScenesManagementServer,
-    OnOffServer({
+    PlugOnOffServer({
       // Case-insensitive like the ModeSelect path, some integrations
       // report options with different casing.
       isOn: (state, agent) =>
