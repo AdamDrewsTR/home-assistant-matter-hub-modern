@@ -9,16 +9,18 @@ export const AppLogo = (props: { large: boolean }) => {
     <Box
       component={Link}
       to={navigation.dashboard}
+      aria-label="Matter Hub Modern"
       sx={{
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-start",
         flexGrow: 1,
+        minWidth: 0,
         textDecoration: "none",
         color: "inherit",
       }}
     >
-      <SvgLogo style={{ height: "40px" }} />
+      <SvgLogo style={{ height: "40px", flexShrink: 0 }} />
       <Typography
         variant="inherit"
         component="span"
@@ -28,6 +30,9 @@ export const AppLogo = (props: { large: boolean }) => {
           fontWeight: 600,
           letterSpacing: "-0.03em",
           whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          display: { xs: props.large ? "inline" : "none", sm: "inline" },
         }}
       >
         {props.large ? "matter hub / modern" : "matter modern"}

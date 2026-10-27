@@ -344,7 +344,7 @@ export function BundlePanel({ bridge }: { bridge: BridgeDataWithMetadata }) {
         </>
       )}
       <Dialog
-        open={custom}
+        open={custom && !preview}
         onClose={() => !saving && setCustom(false)}
         fullWidth
         maxWidth="md"

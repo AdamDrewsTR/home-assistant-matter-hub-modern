@@ -81,8 +81,28 @@ export function DeviceEditor({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
+  useEffect(
+    () => () => {
+      // The editor unmounts with its dialog; restore after focus-trap cleanup.
+      queueMicrotask(() => {
+        const target = opener?.isConnected
+          ? opener
+          : document.querySelector<HTMLElement>("h1");
+        target?.focus({ preventScroll: true });
+      });
+    },
+    [opener],
+  );
   const baseline = mapping ?? { entityId: entity.entity_id };
   const [draft, setDraft] = useState<EntityMappingConfig>(baseline);
+  const [bundleOpen, setBundleOpen] = useState(
+    !!mapping?.composedEntities?.length,
+  );
   const [willShare, setWillShare] = useState(shared ?? false);
   const [review, setReview] = useState(false);
   const [approved, setApproved] = useState(false);
@@ -398,7 +418,11 @@ export function DeviceEditor({
                   </Alert>
                 </Stack>
               </Box>
-              <Box component="details" open={selectedIds.length > 0}>
+              <Box
+                component="details"
+                open={bundleOpen}
+                onToggle={(event) => setBundleOpen(event.currentTarget.open)}
+              >
                 <Box component="summary" sx={{ cursor: "pointer", mb: 2 }}>
                   {t("deviceWorkspace.bundle")}
                 </Box>

@@ -1,5 +1,6 @@
 import type { BridgeDataWithMetadata } from "@home-assistant-matter-hub/common";
 import AddIcon from "@mui/icons-material/Add";
+import CheckIcon from "@mui/icons-material/Check";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DevicesIcon from "@mui/icons-material/Devices";
 import EditIcon from "@mui/icons-material/Edit";
@@ -32,7 +33,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { QRCodeSVG } from "qrcode.react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { forceSyncBridge, openCommissioningWindow } from "../../api/bridges.ts";
@@ -43,6 +44,58 @@ import { useNotifications } from "../notifications/use-notifications.ts";
 
 export interface BridgeDetailsProps {
   readonly bridge: BridgeDataWithMetadata;
+}
+
+function PairingCodeCopy({ value, label }: { value: string; label: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 3000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return (
+    <Stack alignItems="flex-end" sx={{ minWidth: 0 }}>
+      <Button
+        size="small"
+        aria-label={`${t("common.copy")} ${label}`}
+        disabled={copying}
+        endIcon={
+          copied ? (
+            <CheckIcon fontSize="small" />
+          ) : (
+            <ContentCopyIcon fontSize="small" />
+          )
+        }
+        sx={{
+          fontFamily: "monospace",
+          overflowWrap: "anywhere",
+          userSelect: "text",
+        }}
+        onClick={async () => {
+          setCopying(true);
+          setCopied(false);
+          setError(false);
+          try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+          } catch {
+            setError(true);
+          } finally {
+            setCopying(false);
+          }
+        }}
+      >
+        {value}
+      </Button>
+      <Typography role="status" variant="caption" color="success.main">
+        {copied ? t("common.copied") : ""}
+      </Typography>
+      {error && <Alert severity="error">{t("common.copyFailed")}</Alert>}
+    </Stack>
+  );
 }
 
 export const BridgeDetails = ({ bridge }: BridgeDetailsProps) => {
@@ -133,10 +186,6 @@ export const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
     );
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   return (
     <>
       <Card sx={{ height: "100%" }}>
@@ -183,6 +232,7 @@ export const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
                 <QRCodeSVG
                   value={bridge.commissioning.qrPairingCode}
                   size={120}
+                  aria-label={t("bridge.pairingQrCode")}
                 />
               </Box>
             </Box>
@@ -196,19 +246,10 @@ export const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
                 <Typography variant="body2" color="text.secondary">
                   {t("bridge.manualCode")}:
                 </Typography>
-                <Box display="flex" alignItems="center" gap={0.5}>
-                  <Typography variant="body2" fontFamily="monospace">
-                    {bridge.commissioning.manualPairingCode}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      copyToClipboard(bridge.commissioning!.manualPairingCode)
-                    }
-                  >
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                </Box>
+                <PairingCodeCopy
+                  value={bridge.commissioning.manualPairingCode}
+                  label={t("bridge.manualCode")}
+                />
               </Box>
             </Stack>
 
@@ -467,10 +508,6 @@ const PairingDialog = ({
     return null;
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
@@ -492,7 +529,11 @@ const PairingDialog = ({
               borderRadius: 1,
             }}
           >
-            <QRCodeSVG value={bridge.commissioning.qrPairingCode} size={200} />
+            <QRCodeSVG
+              value={bridge.commissioning.qrPairingCode}
+              size={200}
+              aria-label={t("bridge.pairingQrCode")}
+            />
           </Box>
         </Box>
 
@@ -503,19 +544,12 @@ const PairingDialog = ({
             justifyContent="space-between"
           >
             <Typography variant="body2">
-              <strong>Manual Code:</strong>{" "}
-              {bridge.commissioning.manualPairingCode}
+              <strong>{t("bridge.manualCode")}:</strong>
             </Typography>
-            <Tooltip title="Copy">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  copyToClipboard(bridge.commissioning!.manualPairingCode)
-                }
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <PairingCodeCopy
+              value={bridge.commissioning.manualPairingCode}
+              label={t("bridge.manualCode")}
+            />
           </Box>
           <Box
             display="flex"
@@ -523,18 +557,12 @@ const PairingDialog = ({
             justifyContent="space-between"
           >
             <Typography variant="body2">
-              <strong>Passcode:</strong> {bridge.commissioning.passcode}
+              <strong>{t("bridge.passcode")}:</strong>
             </Typography>
-            <Tooltip title="Copy">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  copyToClipboard(bridge.commissioning!.passcode.toString())
-                }
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <PairingCodeCopy
+              value={bridge.commissioning.passcode.toString()}
+              label={t("bridge.passcode")}
+            />
           </Box>
           <Box
             display="flex"
@@ -542,21 +570,12 @@ const PairingDialog = ({
             justifyContent="space-between"
           >
             <Typography variant="body2">
-              <strong>Discriminator:</strong>{" "}
-              {bridge.commissioning.discriminator}
+              <strong>{t("bridge.discriminator")}:</strong>
             </Typography>
-            <Tooltip title="Copy">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  copyToClipboard(
-                    bridge.commissioning!.discriminator.toString(),
-                  )
-                }
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <PairingCodeCopy
+              value={bridge.commissioning.discriminator.toString()}
+              label={t("bridge.discriminator")}
+            />
           </Box>
         </Stack>
 

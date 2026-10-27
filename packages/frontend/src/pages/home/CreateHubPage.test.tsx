@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ import { CreateHubPage } from "./CreateHubPage.tsx";
 const create = vi.fn();
 vi.mock("../../hooks/data/bridges.ts", () => ({
   useCreateBridge: () => create,
+  useUsedPorts: () => ({}),
 }));
 vi.mock("../../routes.tsx", () => ({
   navigation: { advancedSetup: "/setup?advanced=true" },
@@ -20,14 +21,33 @@ vi.mock("./EntityPicker.tsx", () => ({
     </button>
   ),
 }));
+vi.mock("../../components/bridge/BridgeTemplateSelector.tsx", () => ({
+  BridgeTemplateSelector: () => null,
+}));
+vi.mock("../../components/bridge/BridgeConfigEditor.tsx", () => ({
+  BridgeConfigEditor: ({
+    onSave,
+  }: {
+    onSave: (config: { name: string }) => void;
+  }) => (
+    <button type="button" onClick={() => onSave({ name: "Advanced home" })}>
+      Create advanced hub
+    </button>
+  ),
+}));
 
-function renderSetup() {
+function renderSetup(advanced = false) {
   const router = createMemoryRouter(
     [
       { path: "/setup", element: <CreateHubPage /> },
       { path: "/", element: <div>Pairing</div> },
     ],
-    { initialEntries: ["/setup"] },
+    {
+      initialEntries: [
+        "/?from=before-setup",
+        advanced ? "/setup?advanced=true" : "/setup",
+      ],
+    },
   );
   render(
     <ThemeProvider theme={appTheme}>
@@ -68,8 +88,22 @@ describe("simple hub setup", () => {
       }),
     });
     expect(create.mock.calls[0][0]).not.toHaveProperty("port");
+    await act(() => router.navigate(-1));
+    expect(router.state.location.search).toBe("?from=before-setup");
   });
 
+  it("replaces advanced setup on completion instead of reopening it with Back", async () => {
+    create.mockResolvedValue({ id: "advanced-hub" });
+    const router = renderSetup(true);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Create advanced hub" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?hub=advanced-hub&view=pair"),
+    );
+    await act(() => router.navigate(-1));
+    expect(router.state.location.search).toBe("?from=before-setup");
+  });
   it("stays on review with the selection intact when creation fails", async () => {
     create.mockRejectedValueOnce(new Error("Port unavailable"));
     renderSetup();
