@@ -1,4 +1,22 @@
 {
+  "homeBrowser": {
+    "title": "Your home",
+    "subtitle": "Your Home Assistant rooms and devices. Choose what to share.",
+    "spaces": "Your spaces",
+    "wholeHome": "Whole home",
+    "roomNote": "Rooms and device names come from Home Assistant. Nothing to organize twice.",
+    "instructions": "Select a device card to include its visible entities. Open its entity list only when you want to fine-tune.",
+    "count": "{{devices}} devices · {{entities}} entities · {{selected}} selected",
+    "filters": "Filter your home",
+    "showAll": "Show hidden and diagnostic entities",
+    "deviceSelection": "{{selected}} of {{count}} entities selected",
+    "entities": "Choose entities ({{count}})",
+    "groupingNote": "Cards follow physical Home Assistant devices; independent entities stay separate. Selecting a card does not automatically combine its entities into one Matter endpoint. Use Device bundles when you want composition.",
+    "rules": "This hub currently follows sharing rules. You can browse its devices here without changing anything, or switch to a reviewed device selection.",
+    "chooseDevices": "Choose devices instead of rules",
+    "converting": "You are replacing dynamic rules with the entities selected below. Future entities will not be added automatically. Nothing changes until you review and apply.",
+    "standalone": "This hub uses standalone device nodes. Browse its inventory here; change standalone sharing in Advanced."
+  },
   "deviceWorkspace": {
     "review": "Preview changes",
     "yes": "Yes",

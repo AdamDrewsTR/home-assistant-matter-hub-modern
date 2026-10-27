@@ -1,0 +1,102 @@
+name: Release Modern Workspace
+
+on:
+  push:
+    branches: [main, alpha, testing]
+    paths-ignore: ['*.md', 'docs-site/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.repository == 'AdamDrewsTR/home-assistant-matter-hub-modern'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node
+      - name: Identify fork build
+        id: version
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          case "$BRANCH" in
+            main) channel=latest; prefix=4.2.0-modern ;;
+            alpha) channel=alpha; prefix=4.2.0-modern-alpha ;;
+            testing) channel=testing; prefix=4.2.0-modern-testing ;;
+            *) echo "Unsupported release branch: $BRANCH" >&2; exit 1 ;;
+          esac
+          echo "version=$prefix.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run test
+      - name: Build this checkout, not an upstream npm release
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_REVISION: ${{ github.sha }}
+        run: |
+          pnpm run build:app
+          pnpm --filter home-assistant-matter-hub run build
+      - uses: actions/upload-artifact@v6
+        with:
+          name: modern-package
+          path: apps/home-assistant-matter-hub/package.tgz
+          if-no-files-found: error
+  image:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-docker
+      - uses: actions/download-artifact@v7
+        with:
+          name: modern-package
+          path: apps/home-assistant-matter-hub
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish fork add-on
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/home-assistant-matter-hub
+          file: apps/home-assistant-matter-hub/addon.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            NODE_VERSION=24
+            PACKAGE_VERSION=${{ needs.package.outputs.version }}
+            SOURCE_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon:${{ needs.package.outputs.version }}
+            ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon:${{ needs.package.outputs.channel }}
+  catalog:
+    needs: [package, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: addon-catalog-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Advertise only successfully published builds
+        env:
+          RELEASE_VERSION: ${{ needs.package.outputs.version }}
+          RELEASE_CHANNEL: ${{ needs.package.outputs.channel }}
+        run: bash .github/scripts/update-addon-catalog.sh "$RELEASE_VERSION" "$RELEASE_CHANNEL"

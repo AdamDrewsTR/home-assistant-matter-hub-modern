@@ -13,6 +13,9 @@ export default defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(process.env.APP_VERSION || "0.0.0-dev"),
+    __APP_REVISION__: JSON.stringify(
+      process.env.APP_REVISION?.slice(0, 7) || "local",
+    ),
   },
   plugins: [react(), svgr(), markdown()],
 });

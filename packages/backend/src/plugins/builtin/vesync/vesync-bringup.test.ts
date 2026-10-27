@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Environment, Logger, VariableService } from "@matter/general";
 import type { Endpoint } from "@matter/main";
 import { VendorId } from "@matter/main";
-import { BasicInformationServer } from "@matter/main/behaviors";
+import { BasicInformationServer, OnOffServer } from "@matter/main/behaviors";
 import {
   AirPurifierDevice,
   HumiditySensorDevice,
@@ -262,8 +262,12 @@ describe("vesync plugin bring-up (#419)", () => {
     writes.length = 0;
     const before = cloud.v2().length;
 
-    // biome-ignore lint/suspicious/noExplicitAny: matter.js agent is dynamic
-    await get("fryer_left").act((agent) => (agent as any).onOff.off());
+    await get("fryer_left").act(async (agent) => {
+      const onOff = agent.get(OnOffServer);
+      agent.context.transaction.addResourcesSync(onOff);
+      await agent.context.transaction.begin();
+      await onOff.off();
+    });
 
     await vi.waitFor(() =>
       expect(cloud.v2().slice(before)).toEqual([
@@ -287,8 +291,12 @@ describe("vesync plugin bring-up (#419)", () => {
     const { manager, get, cloud } = await bringUp();
     const before = cloud.v2().length;
 
-    // biome-ignore lint/suspicious/noExplicitAny: matter.js agent is dynamic
-    await get("fryer_right").act((agent) => (agent as any).onOff.on());
+    await get("fryer_right").act(async (agent) => {
+      const onOff = agent.get(OnOffServer);
+      agent.context.transaction.addResourcesSync(onOff);
+      await agent.context.transaction.begin();
+      await onOff.on();
+    });
     expect(stateOf(get("fryer_right")).onOff.onOff).toBe(true);
 
     await vi.waitFor(() =>

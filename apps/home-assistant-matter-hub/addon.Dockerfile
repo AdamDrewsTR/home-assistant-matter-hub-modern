@@ -21,8 +21,11 @@ COPY addon.docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 ARG PACKAGE_VERSION="unknown"
+ARG SOURCE_REVISION="unknown"
 ENV APP_VERSION="${PACKAGE_VERSION}"
 LABEL \
+  org.opencontainers.image.source="https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern" \
+  org.opencontainers.image.revision="$SOURCE_REVISION" \
   io.hass.version="$PACKAGE_VERSION" \
   io.hass.type="addon" \
   io.hass.arch="aarch64|amd64"

@@ -3,6 +3,7 @@ import Container from "@mui/material/Container";
 import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
 import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
 import { useTranslation } from "react-i18next";
 import { FloatingLanguageSwitcher } from "../components/misc/FloatingLanguageSwitcher.tsx";
 import { navigation } from "../routes.tsx";
@@ -25,7 +26,16 @@ export const AppFooter = () => {
     },
   ];
   return (
-    <Container sx={{ mt: 16, mb: 4 }}>
+    <Container sx={{ mt: 5, mb: 4 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        textAlign="center"
+        display="block"
+        data-testid="workspace-build"
+      >
+        Matter Hub Modern · {__APP_VERSION__} · {__APP_REVISION__}
+      </Typography>
       <Divider sx={{ mt: 4, mb: 4 }} />
       <Grid container spacing={2} justifyContent="center">
         {links.map((link, idx) => (

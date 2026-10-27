@@ -55,6 +55,18 @@ afterEach(cleanup);
 describe("device picker", () => {
   it("keeps entity names clickable without nesting configuration actions inside their labels", async () => {
     render(<Picker />);
+    await userEvent.click(
+      await screen
+        .findAllByText("Choose entities (1)")
+        .then(
+          (items) =>
+            items.find((item) =>
+              item
+                .closest(".MuiCard-root")
+                ?.textContent?.includes("Kitchen fixture"),
+            )!,
+        ),
+    );
     await userEvent.click(await screen.findByText("Kitchen lamp"));
     expect(
       screen.getByRole("checkbox", { name: "Kitchen lamp" }),
@@ -79,6 +91,43 @@ describe("device picker", () => {
       "light.bedroom,sensor.missing",
     );
   });
+  it("selects a physical device directly from its card without opening entity details", async () => {
+    render(<Picker />);
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Select all shown entities in Kitchen fixture",
+    });
+    expect(
+      checkbox.closest(".MuiCard-root")?.querySelector("details"),
+    ).not.toHaveAttribute("open");
+    await userEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "light.bedroom,sensor.missing,light.kitchen",
+    );
+  });
+  it("browses HA rooms and searches room names without losing other selected entities", async () => {
+    render(<Picker />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Kitchen" }),
+    );
+    expect(screen.getByText("Kitchen fixture")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bedroom lamp", { selector: "p" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Clear shown" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "light.bedroom,sensor.missing",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Whole home" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Search devices and entities" }),
+      "Kitchen",
+    );
+    expect(screen.getByText("Kitchen fixture")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bedroom lamp", { selector: "p" }),
+    ).not.toBeInTheDocument();
+  });
 
   it("offers a working retry after an inventory failure", async () => {
     vi.mocked(fetchHomeEntities).mockRejectedValueOnce(
@@ -88,7 +137,7 @@ describe("device picker", () => {
     expect(await screen.findByText("Cannot reach HA")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() =>
-      expect(screen.getByText("Kitchen lamp")).toBeInTheDocument(),
+      expect(screen.getByText("Kitchen fixture")).toBeInTheDocument(),
     );
   });
 });

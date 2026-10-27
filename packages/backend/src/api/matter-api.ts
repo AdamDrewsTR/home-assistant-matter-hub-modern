@@ -630,6 +630,7 @@ export function matterApi(
 
     res.status(200).json({
       total: matchingEntities.length,
+      entityIds: matchingEntities.map((entity) => entity.entity_id),
       entities: matchingEntities.slice(0, 100),
       truncated: matchingEntities.length > 100,
     });

@@ -1,11 +1,11 @@
-version: "2.0.59"
-image: ghcr.io/riddix/home-assistant-matter-hub-addon
+version: "4.2.0-modern.1"
+image: ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon
 slug: hamh
-name: Home-Assistant-Matter-Hub
-description: Publish your Home Assistant entities to Matter-compatible controllers.
+name: Matter Hub Modern
+description: Choose Home Assistant rooms and devices to share with Matter controllers.
 url: https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern
 panel_icon: mdi:hub
-panel_title: Matter Hub
+panel_title: Matter Hub Modern
 homeassistant: 2024.1.0
 homeassistant_api: true
 host_network: true

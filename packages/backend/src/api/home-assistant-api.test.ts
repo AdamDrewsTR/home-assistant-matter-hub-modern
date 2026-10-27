@@ -33,6 +33,8 @@ app.use(
           name: "Factory name",
           name_by_user: "Desk lights",
           area_id: "living_room",
+          manufacturer: "Demo",
+          model: "Light",
         },
         other: { id: "other", area_id: 123 },
       },
@@ -72,6 +74,9 @@ describe("home inventory metadata", () => {
           entity_id: "light.inherited",
           area_id: "living_room",
           device_name: "Desk lights",
+          device_area_id: "living_room",
+          manufacturer: "Demo",
+          model: "Light",
         }),
         expect.objectContaining({
           entity_id: "light.override",

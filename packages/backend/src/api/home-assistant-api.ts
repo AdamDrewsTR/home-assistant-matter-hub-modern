@@ -8,6 +8,9 @@ export interface HomeAssistantEntityInfo {
   domain: string;
   device_id?: string;
   device_name?: string;
+  device_area_id?: string;
+  manufacturer?: string;
+  model?: string;
   area_id?: string;
   disabled?: boolean;
   hidden?: boolean;
@@ -125,6 +128,10 @@ export function homeAssistantApi(
         domain: entity.entity_id.split(".")[0],
         device_id: entity.device_id,
         device_name: device?.name_by_user ?? device?.name,
+        device_area_id:
+          typeof device?.area_id === "string" ? device.area_id : undefined,
+        manufacturer: device?.manufacturer,
+        model: device?.model,
         area_id:
           entity.area_id ??
           (typeof device?.area_id === "string" ? device.area_id : undefined),

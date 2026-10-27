@@ -16,6 +16,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchBridges } from "../../api/bridges.ts";
+import { fetchSharingSelection } from "../../api/home-inventory.ts";
 import { appTheme } from "../../theme/theme.ts";
 import { HomePage } from "./HomePage.tsx";
 
@@ -24,6 +25,9 @@ vi.mock("../../api/bridges.ts", async (importOriginal) => ({
   fetchBridges: vi.fn(),
 }));
 vi.mock("./PairingChecklist.tsx", () => ({ PairingChecklist: () => null }));
+vi.mock("../../api/home-inventory.ts", () => ({
+  fetchSharingSelection: vi.fn(),
+}));
 
 const update = vi.fn();
 const dispatch = vi.fn();
@@ -55,11 +59,13 @@ vi.mock("./EntityPicker.tsx", () => ({
   EntityPicker: ({
     onChange,
     selected,
+    disabled,
   }: {
     onChange: (ids: string[]) => void;
     selected: string[];
+    disabled: boolean;
   }) => (
-    <button type="button" onClick={() => onChange([])}>
+    <button type="button" disabled={disabled} onClick={() => onChange([])}>
       Clear selection {selected.join(",")}
     </button>
   ),
@@ -108,6 +114,8 @@ function renderHome() {
 beforeEach(() => {
   bridges = [bridge("one"), bridge("two")];
   vi.mocked(fetchBridges).mockImplementation(async () => bridges);
+  vi.mocked(fetchSharingSelection).mockReset();
+  vi.mocked(fetchSharingSelection).mockResolvedValue(["light.desk"]);
   update.mockReset();
   update.mockImplementation(async (request) => {
     bridges = bridges.map((item) =>
@@ -171,7 +179,7 @@ describe("home workspace", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("does not rewrite an existing wildcard hub", () => {
+  it("shows a rule-based hub's devices without silently converting its rules", async () => {
     bridges[0] = {
       ...bridge("one"),
       filter: {
@@ -181,11 +189,57 @@ describe("home workspace", () => {
     };
     renderHome();
     expect(
-      screen.getByText(/This hub uses advanced rules/),
+      screen.getByText(/This hub currently follows sharing rules/),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Clear selection/ }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("button", { name: /Clear selection light.desk/ }),
+    ).toBeDisabled();
+    expect(update).not.toHaveBeenCalled();
+  });
+  it("explicitly converts legacy rules through the same reviewed device selection", async () => {
+    bridges[0] = {
+      ...bridge("one"),
+      filter: {
+        include: [{ type: HomeAssistantMatcherType.Pattern, value: "*" }],
+        exclude: [],
+      },
+    };
+    renderHome();
+    const choose = screen.getByRole("button", {
+      name: "Choose devices instead of rules",
+    });
+    await waitFor(() => expect(choose).toBeEnabled());
+    await userEvent.click(choose);
+    expect(
+      screen.getByRole("button", { name: /Clear selection light.desk/ }),
+    ).toBeEnabled();
+    expect(update).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    await approve();
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0]).toMatchObject({
+      filter: {
+        include: [{ type: "pattern", value: "light.desk" }],
+        exclude: [],
+      },
+      featureFlags: { stableIdentity: true },
+      port: 5540,
+    });
+  });
+  it("does not offer conversion when the complete server selection cannot be read", async () => {
+    bridges[0] = { ...bridge("one"), filter: { include: [], exclude: [] } };
+    vi.mocked(fetchSharingSelection).mockRejectedValue(
+      new Error("Incomplete sharing selection"),
+    );
+    renderHome();
+    expect(
+      await screen.findByText("Incomplete sharing selection"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose devices instead of rules" }),
+    ).toBeDisabled();
     expect(update).not.toHaveBeenCalled();
   });
 

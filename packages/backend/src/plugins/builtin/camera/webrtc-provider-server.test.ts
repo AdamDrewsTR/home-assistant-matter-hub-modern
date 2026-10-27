@@ -16,6 +16,7 @@ import type { SecureSession } from "@matter/protocol";
 import { StreamUsage } from "@matter/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AggregatorEndpoint } from "../../../matter/endpoints/aggregator-endpoint.js";
+import { CameraAvStreamServer } from "./av-stream-server.js";
 import { createCameraEndpointType } from "./camera-endpoint.js";
 import {
   type RequestorInvocation,
@@ -176,24 +177,35 @@ const opusRequest = {
 };
 
 function audioCall(endpoint: Endpoint, command: string, request: unknown) {
-  return endpoint.act((agent) =>
+  return endpoint.act(async (agent) => {
+    const av = agent.get(CameraAvStreamServer);
+    agent.context.transaction.addResourcesSync(av);
+    await agent.context.transaction.begin();
     // biome-ignore lint/suspicious/noExplicitAny: invoke the command directly
-    (agent as any).cameraAvStreamManagement[command](request),
-  ) as Promise<{ audioStreamId: number } | undefined>;
+    return (av as any)[command](request);
+  }) as Promise<{ audioStreamId: number } | undefined>;
 }
 
 // What a CaptureSnapshot invoke does to the AV state while it waits for HA:
 // matter.js locks the cluster for the whole command.
 async function holdAvState(endpoint: Endpoint): Promise<() => Promise<void>> {
-  let release = () => {};
-  const held = endpoint.act(async (agent) => {
-    // biome-ignore lint/suspicious/noExplicitAny: any write takes the lock
-    (agent as any).cameraAvStreamManagement.state.currentFrameRate = 5;
-    await new Promise<void>((r) => {
-      release = r;
-    });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  await new Promise((r) => setTimeout(r, 20));
+  let locked!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const held = endpoint.act(async (agent) => {
+    const av = agent.get(CameraAvStreamServer);
+    agent.context.transaction.addResourcesSync(av);
+    await agent.context.transaction.begin();
+    av.state.currentFrameRate = 5;
+    locked();
+    await gate;
+  });
+  await Promise.race([ready, held]);
   return async () => {
     release();
     await held;

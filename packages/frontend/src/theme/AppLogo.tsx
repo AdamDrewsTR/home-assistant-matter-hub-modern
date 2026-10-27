@@ -30,7 +30,7 @@ export const AppLogo = (props: { large: boolean }) => {
           whiteSpace: "nowrap",
         }}
       >
-        {props.large ? "matter / home assistant" : "matter hub"}
+        {props.large ? "matter hub / modern" : "matter modern"}
       </Typography>
     </Box>
   );

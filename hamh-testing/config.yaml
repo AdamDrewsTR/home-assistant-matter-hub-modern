@@ -1,11 +1,11 @@
-version: "4.1.0-testing.25"
-image: ghcr.io/riddix/home-assistant-matter-hub-addon
+version: "4.2.0-modern-testing.1"
+image: ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon
 slug: hamh-testing
-name: Home-Assistant-Matter-Hub (Testing)
+name: Matter Hub Modern (Testing)
 description: Highly experimental release for developers. Not recommended for production use.
 url: https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern/tree/testing
 panel_icon: mdi:bug
-panel_title: Matter Hub Testing
+panel_title: Matter Hub Modern Testing
 homeassistant: 2024.1.0
 homeassistant_api: true
 host_network: true

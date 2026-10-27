@@ -35,7 +35,8 @@ export const navigation = {
   settings: "/system/backup",
   startup: "/system/startup",
 
-  githubRepository: "https://github.com/riddix/home-assistant-matter-hub/",
+  githubRepository:
+    "https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern/",
   documentation: documentationUrl,
   support: `${documentationUrl}/support`,
   faq: {

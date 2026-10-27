@@ -1,11 +1,11 @@
-version: "2.1.0-alpha.948"
-image: ghcr.io/riddix/home-assistant-matter-hub-addon
+version: "4.2.0-modern-alpha.1"
+image: ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon
 slug: hamh-alpha
-name: Home-Assistant-Matter-Hub (Alpha)
+name: Matter Hub Modern (Alpha)
 description: Alpha release for testing. May contain bugs or incomplete features.
 url: https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern
 panel_icon: mdi:hub
-panel_title: Matter Hub Alpha
+panel_title: Matter Hub Modern Alpha
 homeassistant: 2024.1.0
 homeassistant_api: true
 host_network: true

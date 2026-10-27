@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   release:
+    if: github.repository == 'RiDDiX/home-assistant-matter-hub'
     permissions:
       contents: write
       packages: write
@@ -97,6 +98,7 @@ jobs:
           path: apps/home-assistant-matter-hub/package.tgz
 
   prepare-docker:
+    if: github.repository == 'RiDDiX/home-assistant-matter-hub'
     name: "Prepare Docker"
     runs-on: ubuntu-latest
     outputs:

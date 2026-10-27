@@ -6,9 +6,9 @@ inputs:
     description: "Location of the Dockerfile to use. Parent directory will be used as context."
     required: true
   node-version:
-    description: "The node version to include in the dockerfile (default: 22)"
+    description: "The node version to include in the dockerfile (default: 24)"
     required: false
-    default: "22"
+    default: "24"
   package-version:
     description: "The package version to install"
     required: true
@@ -27,10 +27,11 @@ runs:
       id: meta
       shell: bash
       env:
-        DOCKER_IMAGE_BASENAME: ghcr.io/riddix/home-assistant-matter-hub
+        SOURCE_REPOSITORY: ${{ github.repository }}
       run: |
         CONTEXT=$(dirname "${{inputs.dockerfile}}")
         DOCKER_TYPE=$(basename "${{inputs.dockerfile}}" .Dockerfile)
+        DOCKER_IMAGE_BASENAME="ghcr.io/${SOURCE_REPOSITORY,,}"
 
         if [ "$DOCKER_TYPE" = "standalone" ]; then
           DOCKER_IMAGE="${DOCKER_IMAGE_BASENAME}"

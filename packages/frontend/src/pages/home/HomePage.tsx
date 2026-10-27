@@ -2,11 +2,11 @@ import type { BridgeDataWithMetadata } from "@home-assistant-matter-hub/common";
 import Add from "@mui/icons-material/Add";
 import ArrowForward from "@mui/icons-material/ArrowForward";
 import HomeOutlined from "@mui/icons-material/HomeOutlined";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
+import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
@@ -23,11 +23,11 @@ import {
   useSearchParams,
 } from "react-router";
 import { fetchBridges } from "../../api/bridges.ts";
+import { fetchSharingSelection } from "../../api/home-inventory.ts";
 import {
   FabricsCard,
   PairingCard,
 } from "../../components/bridge/BridgeDetails.tsx";
-import { FilterPreview } from "../../components/bridge/FilterPreview.tsx";
 import { ConfirmDialog } from "../../components/misc/ConfirmDialog.tsx";
 import { useBridges, useUpdateBridge } from "../../hooks/data/bridges.ts";
 import { navigation } from "../../routes.tsx";
@@ -60,6 +60,11 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
   const updateBridge = useUpdateBridge();
   const [baseline, setBaseline] = useState(bridge.filter);
   const original = selectedEntities(baseline);
+  const [resolved, setResolved] = useState<string[]>();
+  const [editingRules, setEditingRules] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string>();
+  const [resolutionAttempt, setResolutionAttempt] = useState(0);
   const [selection, setSelection] = useState<string[]>(original ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -68,8 +73,37 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
   const [deviceOpen, setDeviceOpen] = useState(false);
   const [deviceBusy, setDeviceBusy] = useState(false);
   const dirty =
-    JSON.stringify([...selection].sort()) !==
-    JSON.stringify([...(original ?? [])].sort());
+    editingRules ||
+    (original !== null &&
+      JSON.stringify([...selection].sort()) !==
+        JSON.stringify([...original].sort()));
+  const ruleBased = original === null;
+  const readOnly =
+    bridge.featureFlags?.serverMode || (ruleBased && !editingRules);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Explicit retry reloads the same rules without altering them.
+  useEffect(() => {
+    if (selectedEntities(baseline) !== null) return;
+    const controller = new AbortController();
+    setResolving(true);
+    setResolveError(undefined);
+    setResolved(undefined);
+    fetchSharingSelection(baseline, controller.signal)
+      .then((ids) => {
+        if (controller.signal.aborted) return;
+        setResolved(ids);
+        setSelection(ids);
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted)
+          setResolveError(
+            cause instanceof Error ? cause.message : String(cause),
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setResolving(false);
+      });
+    return () => controller.abort();
+  }, [baseline, resolutionAttempt]);
 
   const remoteChanged =
     JSON.stringify(bridge.filter) !== JSON.stringify(baseline);
@@ -106,6 +140,7 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
       setBaseline(updated.filter);
       setSelection(selectedEntities(updated.filter) ?? []);
       setSaved(true);
+      setEditingRules(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("modern.saveFailed"));
       throw cause;
@@ -114,28 +149,50 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
     }
   }
 
-  if (original === null || bridge.featureFlags?.serverMode)
-    return (
-      <Stack spacing={2}>
-        <Alert severity="info">{t("modern.ruleBased")}</Alert>
-        <Button
-          component={Link}
-          to={navigation.editBridge(bridge.id)}
-          startIcon={<SettingsOutlined />}
-          sx={{ alignSelf: "flex-start" }}
-        >
-          {t("modern.editRules")}
-        </Button>
-        <FilterPreview filter={bridge.filter} />
-      </Stack>
-    );
-
   return (
     <Stack spacing={3}>
+      {ruleBased && (
+        <Alert
+          severity="info"
+          action={
+            <Button component={Link} to={navigation.editBridge(bridge.id)}>
+              {t("modern.editRules")}
+            </Button>
+          }
+        >
+          {t(editingRules ? "homeBrowser.converting" : "homeBrowser.rules")}
+        </Alert>
+      )}
+      {ruleBased && !editingRules && (
+        <Button
+          variant="outlined"
+          disabled={resolving || !resolved || bridge.featureFlags?.serverMode}
+          onClick={() => setEditingRules(true)}
+          sx={{ alignSelf: "flex-start" }}
+        >
+          {t("homeBrowser.chooseDevices")}
+        </Button>
+      )}
+      {bridge.featureFlags?.serverMode && (
+        <Alert severity="info">{t("homeBrowser.standalone")}</Alert>
+      )}
+      {resolveError && (
+        <Alert
+          severity="error"
+          action={
+            <Button onClick={() => setResolutionAttempt((value) => value + 1)}>
+              {t("modern.retry")}
+            </Button>
+          }
+        >
+          {resolveError}
+        </Alert>
+      )}
+      {resolving && <CircularProgress aria-label={t("common.loading")} />}
       {review && (
         <ChangePlanDialog
           open
-          before={original}
+          before={original ?? resolved ?? []}
           after={selection}
           onClose={() => setReview(false)}
           onApply={save}
@@ -165,6 +222,7 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
                 setBaseline(bridge.filter);
                 setSelection(selectedEntities(bridge.filter) ?? []);
                 setSaved(false);
+                setEditingRules(false);
               }}
             >
               {t("modern.reloadSelection")}
@@ -184,7 +242,7 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
           setSelection(value);
           setSaved(false);
         }}
-        disabled={saving}
+        disabled={saving || readOnly || (ruleBased && !resolved)}
       />
       {dirty && (
         <Stack
@@ -215,7 +273,13 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
               )}
             </Typography>
           </Box>
-          <Button disabled={saving} onClick={() => setSelection(original)}>
+          <Button
+            disabled={saving}
+            onClick={() => {
+              setSelection(original ?? resolved ?? []);
+              setEditingRules(false);
+            }}
+          >
             {t("modern.discard")}
           </Button>
           <Button
@@ -257,14 +321,9 @@ export function HomePage() {
         spacing={2}
       >
         <Box>
-          <Typography variant="overline" color="primary">
-            {t("modern.eyebrow")}
-          </Typography>
-          <Typography variant="h1" sx={{ mt: 1 }}>
-            {t("modern.homeTitle")}
-          </Typography>
+          <Typography variant="h1">{t("homeBrowser.title")}</Typography>
           <Typography color="text.secondary" sx={{ mt: 1.5 }}>
-            {t("modern.homeDescription")}
+            {t("homeBrowser.subtitle")}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -355,9 +414,9 @@ export function HomePage() {
         <>
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-              gap: 2,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 1,
             }}
           >
             {[
@@ -368,18 +427,11 @@ export function HomePage() {
                 bridge.commissioning?.fabrics.length ?? 0,
               ],
             ].map(([label, value]) => (
-              <Card key={label} variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="h3" color="primary">
-                  {value}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mt: 1 }}
-                >
-                  {label}
-                </Typography>
-              </Card>
+              <Chip
+                key={label}
+                variant="outlined"
+                label={`${label}: ${value}`}
+              />
             ))}
           </Box>
           {bridge.statusReason && (
