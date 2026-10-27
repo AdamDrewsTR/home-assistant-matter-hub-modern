@@ -27,17 +27,17 @@ export const AppTopBar = () => {
   return (
     <>
       <AppBar>
-        <Toolbar sx={{ minHeight: "76px !important" }}>
+        <Toolbar sx={{ minHeight: "76px !important", px: { xs: 1.5, sm: 3 } }}>
           <Container
             maxWidth="xl"
             disableGutters
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: { xs: 1, sm: 2 },
+              gap: { xs: 0.5, sm: 2 },
             }}
           >
-            <Box sx={{ flex: 1, "& svg": { maxWidth: 40 } }}>
+            <Box sx={{ flex: 1, minWidth: 0, "& svg": { maxWidth: 40 } }}>
               <AppLogo large={false} />
             </Box>
             <StatusIndicator />

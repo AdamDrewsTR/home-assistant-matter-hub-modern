@@ -14,12 +14,13 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Link,
   useBeforeUnload,
   useBlocker,
+  useLocation,
   useSearchParams,
 } from "react-router";
 import { fetchBridges } from "../../api/bridges.ts";
@@ -299,6 +300,8 @@ export function HomePage() {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { content: bridges, isLoading, error } = useBridges();
+  const location = useLocation();
+  const heading = useRef<HTMLHeadingElement>(null);
   const [params, setParams] = useSearchParams();
   const bridge = params.has("hub")
     ? bridges?.find((item) => item.id === params.get("hub"))
@@ -312,6 +315,12 @@ export function HomePage() {
     const timer = setInterval(() => dispatch(loadBridges()), 15000);
     return () => clearInterval(timer);
   }, [dispatch]);
+  useEffect(() => {
+    if (location.state?.focusWorkspace) {
+      window.scrollTo(0, 0);
+      heading.current?.focus({ preventScroll: true });
+    }
+  }, [location.state]);
 
   return (
     <Stack spacing={4}>
@@ -321,7 +330,9 @@ export function HomePage() {
         spacing={2}
       >
         <Box>
-          <Typography variant="h1">{t("homeBrowser.title")}</Typography>
+          <Typography variant="h1" ref={heading} tabIndex={-1}>
+            {t("homeBrowser.title")}
+          </Typography>
           <Typography color="text.secondary" sx={{ mt: 1.5 }}>
             {t("homeBrowser.subtitle")}
           </Typography>
@@ -524,6 +535,18 @@ export function HomePage() {
                   <PairingCard key={bridge.id} bridge={bridge} />
                 </Box>
                 <FabricsCard bridge={bridge} />
+                <Button
+                  variant="contained"
+                  sx={{ alignSelf: "flex-start" }}
+                  onClick={() =>
+                    setParams(
+                      { hub: bridge.id, view: "devices" },
+                      { replace: true, state: { focusWorkspace: true } },
+                    )
+                  }
+                >
+                  {t("modern.finishSetup")}
+                </Button>
               </Stack>
             )}
           </Box>

@@ -6,6 +6,7 @@ import {
 import { ThemeProvider } from "@mui/material/styles";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackupSnapshot } from "../../api/backup.ts";
@@ -116,6 +117,69 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("visual device editing", () => {
+  it("returns keyboard focus to its opener after discarding an edit", async () => {
+    function WithTrigger() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Configure bundle
+          </button>
+          {open && (
+            <DeviceEditor
+              entity={inventory[0]}
+              inventory={inventory}
+              bridge={bridge}
+              mapping={mapping}
+              onClose={() => setOpen(false)}
+              onSaved={vi.fn()}
+            />
+          )}
+        </>
+      );
+    }
+    render(
+      <RouterProvider
+        router={createMemoryRouter([{ path: "/", element: <WithTrigger /> }])}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Configure bundle" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove composed capabilities" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Discard changes" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Configure bundle" }),
+      ).toHaveFocus(),
+    );
+  });
+  it("keeps the capability picker open after removing a bundle", async () => {
+    renderEditor();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove composed capabilities" }),
+    );
+    const picker = screen.getByRole("combobox", {
+      name: "Additional capabilities",
+    });
+    expect(picker.closest("details")).toHaveAttribute("open");
+    await userEvent.click(picker);
+    await userEvent.click(
+      await screen.findByRole("option", {
+        name: "sensor.humidity (sensor.humidity)",
+      }),
+    );
+    expect(picker.closest("details")).toHaveAttribute("open");
+    expect(
+      screen.getByRole("button", { name: "Remove composed capabilities" }),
+    ).toBeInTheDocument();
+    expect(updateEntityMapping).not.toHaveBeenCalled();
+  });
   it("reviews and unbundles without removing identities or unrelated overrides", async () => {
     renderEditor();
     await userEvent.click(

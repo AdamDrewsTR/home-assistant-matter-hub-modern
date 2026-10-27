@@ -112,6 +112,7 @@ function renderHome() {
 }
 
 beforeEach(() => {
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   bridges = [bridge("one"), bridge("two")];
   vi.mocked(fetchBridges).mockImplementation(async () => bridges);
   vi.mocked(fetchSharingSelection).mockReset();
@@ -124,9 +125,27 @@ beforeEach(() => {
     return bridges[0];
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("home workspace", () => {
+  it("finishes pairing on the same hub's devices without retaining the pairing entry", async () => {
+    const router = renderHome();
+    await act(() => router.navigate("/?hub=two&view=pair"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Done - view devices" }),
+    );
+    expect(router.state.location.search).toBe("?hub=two&view=devices");
+    expect(screen.getByRole("heading", { name: "Your home" })).toHaveFocus();
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+    expect(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    ).toBeInTheDocument();
+    await act(() => router.navigate(-1));
+    expect(router.state.location.search).toBe("");
+  });
   async function approve() {
     const dialog = screen.getByRole("dialog");
     await userEvent.click(

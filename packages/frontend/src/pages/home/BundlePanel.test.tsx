@@ -124,6 +124,9 @@ describe("bundle approval", () => {
         name: "Preview bundle",
       }),
     );
+    await waitFor(() =>
+      expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1),
+    );
     expect(updateEntityMapping).not.toHaveBeenCalled();
     await user.click(
       screen.getByRole("checkbox", { name: /I reviewed the entities/ }),

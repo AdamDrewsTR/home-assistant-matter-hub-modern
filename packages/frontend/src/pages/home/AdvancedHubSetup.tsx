@@ -40,7 +40,10 @@ export function AdvancedHubSetup() {
     setError(undefined);
     try {
       const bridge = await create(draft);
-      navigate(`/?hub=${encodeURIComponent(bridge.id)}&view=pair`);
+      navigate(`/?hub=${encodeURIComponent(bridge.id)}&view=pair`, {
+        replace: true,
+        state: { focusWorkspace: true },
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setSaving(false);
@@ -51,7 +54,8 @@ export function AdvancedHubSetup() {
       <Box>
         <Button
           component={Link}
-          to="/setup"
+          to="/"
+          replace
           startIcon={<ArrowBack />}
           sx={{ mb: 2 }}
         >

@@ -15,6 +15,12 @@ export const appTheme = createTheme({
           light: "#7596d7",
           dark: "#304c7d",
         },
+        warning: {
+          main: "#a34b00",
+          light: "#c5722f",
+          dark: "#743600",
+          contrastText: "#ffffff",
+        },
         background: {
           default: "#f3f6f9",
           paper: "#ffffff",
@@ -75,6 +81,32 @@ export const appTheme = createTheme({
     borderRadius: 12,
   },
   components: {
+    MuiAutocomplete: {
+      styleOverrides: {
+        root: {
+          minWidth: 0,
+          maxWidth: "100%",
+        },
+        inputRoot: { minWidth: 0 },
+        tag: { maxWidth: "calc(100% - 6px)" },
+        option: { overflowWrap: "anywhere", minWidth: 0 },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: { minWidth: 0, overflowWrap: "anywhere" },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: { overflowWrap: "anywhere" },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: { flexWrap: "wrap" },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {

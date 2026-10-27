@@ -54,7 +54,10 @@ export function CreateHubPage() {
         filter: selectionFilter(selected),
         featureFlags: { ...profile.featureFlags },
       });
-      navigate(`/?hub=${encodeURIComponent(bridge.id)}&view=pair`);
+      navigate(`/?hub=${encodeURIComponent(bridge.id)}&view=pair`, {
+        replace: true,
+        state: { focusWorkspace: true },
+      });
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : t("modern.createFailed"),
@@ -75,6 +78,7 @@ export function CreateHubPage() {
         <Button
           component={Link}
           to="/"
+          replace
           startIcon={<ArrowBack />}
           sx={{ mb: 2 }}
         >
@@ -176,6 +180,8 @@ export function CreateHubPage() {
         direction="row"
         alignItems="center"
         spacing={2}
+        flexWrap="wrap"
+        useFlexGap
         sx={{
           position: "sticky",
           bottom: 16,
@@ -189,15 +195,24 @@ export function CreateHubPage() {
       >
         <Button
           disabled={saving || step === 0}
+          sx={{ flexGrow: { xs: 1, sm: 0 } }}
           onClick={() => setStep(step - 1)}
         >
           {t("common.back")}
         </Button>
-        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            flex: { xs: "1 0 100%", sm: 1 },
+            order: { xs: -1, sm: 0 },
+          }}
+        >
           {t("modern.selectedCount", { count: selected.length })}
         </Typography>
         <Button
           variant="contained"
+          sx={{ flexGrow: { xs: 1, sm: 0 } }}
           disabled={saving || !name.trim() || (step > 0 && !selected.length)}
           endIcon={<ArrowForward />}
           onClick={() => (step === 2 ? create() : setStep(step + 1))}
@@ -212,6 +227,7 @@ export function CreateHubPage() {
       <Button
         component={Link}
         to={navigation.advancedSetup}
+        replace
         startIcon={<SettingsOutlined />}
         sx={{ alignSelf: "flex-start" }}
       >
