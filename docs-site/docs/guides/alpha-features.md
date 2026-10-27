@@ -9,7 +9,7 @@ This guide covers how to install and use the Alpha version of Home-Assistant-Mat
 
 ### Home Assistant Add-on
 
-1. Add the repository: `https://github.com/riddix/home-assistant-addons`
+1. Add the repository: `https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern`
 2. Install **Home-Assistant-Matter-Hub (Alpha)** from the Add-on Store
 3. The Alpha add-on runs independently from the stable version
 

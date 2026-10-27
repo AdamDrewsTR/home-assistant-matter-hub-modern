@@ -22,7 +22,7 @@ This application can be installed in different ways:
 
 Simply add the following GitHub Repository URL to your Home Assistant AddOn Store.
 
-> https://github.com/riddix/home-assistant-addons
+> https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern
 
 1. Open the UI of your Home Assistant instance
 2. Go to `Settings` -> `Add-Ons` -> `Add-On Store`

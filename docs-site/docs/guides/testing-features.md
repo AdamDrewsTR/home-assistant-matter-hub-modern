@@ -21,11 +21,8 @@ This guide covers features available in the Testing branch (`testing`) of Home-A
 
 ### Home Assistant Add-on
 
-Currently, there is no dedicated Testing add-on. To test:
-
-1. Use the Alpha add-on repository: `https://github.com/riddix/home-assistant-addons`
-2. Manually update to the testing Docker tag if available
-3. Or build from source using the `testing` branch
+1. Add this repository: `https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern`
+2. Install **Home-Assistant-Matter-Hub (Testing)** from the Add-on Store
 
 ### Docker
 

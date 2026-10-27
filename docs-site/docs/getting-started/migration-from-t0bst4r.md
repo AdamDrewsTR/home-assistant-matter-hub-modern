@@ -38,7 +38,7 @@ The storage format is fully compatible between both versions. Your Matter fabric
 
 1. Go to **Settings → Add-ons → Add-on Store**
 2. Click the three dots (⋮) → **Repositories**
-3. Add: `https://github.com/riddix/home-assistant-addons`
+3. Add: `https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern`
 4. Click **Add** → **Close**
 
 #### Step 4: Install New Add-on

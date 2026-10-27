@@ -613,13 +613,15 @@ For more details, see the [Robot Vacuum Documentation](https://riddix.github.io/
 
 ### Home Assistant Add-on (Recommended)
 
-[![Open your Home Assistant instance and show the dashboard of an app.](https://my.home-assistant.io/badges/supervisor_addon.svg)](https://my.home-assistant.io/redirect/supervisor_addon/?addon=3fd9e6b0_hamh&repository_url=https%3A%2F%2Fgithub.com%2Friddix%2Fhome-assistant-addons)
+Add this repository to the Home Assistant Add-on Store:
+
+`https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern`
 
 ### Manual steps (testing versions, etc.)
 Add this repository to your Add-on Store:
 
 ```
-https://github.com/RiDDiX/home-assistant-addons
+https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern
 ```
 
 Three add-ons are available:
@@ -732,7 +734,7 @@ Migrating from the original `t0bst4r/home-assistant-matter-hub` is easy. **Your 
 
 3. **Add the new repository:**
    ```
-   https://github.com/RiDDiX/home-assistant-addons
+   https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern
    ```
 
 4. **Install and start the new add-on once** (creates the data folder), then **stop it**
@@ -887,4 +889,3 @@ Your support helps cover hosting costs and motivates continued development. Than
 </div>
 
 ---
-

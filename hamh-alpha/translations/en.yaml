@@ -1,0 +1,19 @@
+configuration:
+  app_log_level:
+    name: Log level
+    description: Controls the add-on log verbosity.
+  protocol_log_level:
+    name: Protocol log level
+    description: Use debug only when requested; protocol logs are very verbose.
+  disable_log_colors:
+    name: Disable log colors
+    description: Print logs without color formatting.
+  mdns_network_interface:
+    name: mDNS network interface
+    description: Limit mDNS to a specific network interface.
+  mdns_strip_global_ipv6:
+    name: Strip global IPv6 from mDNS
+    description: Remove public IPv6 addresses from Matter mDNS records when controllers cannot reach them.
+  heap_size_mb:
+    name: Node.js heap limit (MB)
+    description: Set the maximum heap size; 0 selects a value automatically based on available memory.
