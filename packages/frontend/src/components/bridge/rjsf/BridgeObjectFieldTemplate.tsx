@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { generateTemplates } from "@rjsf/mui";
 import type { ObjectFieldTemplateProps } from "@rjsf/utils";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const muiTemplates = generateTemplates();
 const DefaultObjectFieldTemplate = muiTemplates.ObjectFieldTemplate!;
@@ -16,8 +17,61 @@ const DefaultObjectFieldTemplate = muiTemplates.ObjectFieldTemplate!;
 export function BridgeObjectFieldTemplate(props: ObjectFieldTemplateProps) {
   const fieldId = props.fieldPathId?.$id ?? "";
 
+  if (fieldId === "root") return <GroupedConfig {...props} />;
+
   if (fieldId === "root_filter") {
     return <CollapsibleFilterTemplate {...props} />;
+  }
+
+  function GroupedConfig(props: ObjectFieldTemplateProps) {
+    const { t } = useTranslation();
+    const groupFor = (name: string) => {
+      if (name === "filter") return "sharing";
+      if (name === "featureFlags") return "behavior";
+      if (["name", "port", "countryCode", "icon"].includes(name))
+        return "general";
+      return "identity";
+    };
+    return (
+      <Box sx={{ display: "grid", gap: 2 }}>
+        {["general", "sharing", "behavior", "identity"].map((group) => {
+          const fields = props.properties.filter(
+            (field) => groupFor(field.name) === group,
+          );
+          if (!fields.length) return null;
+          if (group === "sharing")
+            return (
+              <Box key={group}>
+                {fields.map((field) => (
+                  <Box key={field.name}>{field.content}</Box>
+                ))}
+              </Box>
+            );
+          return (
+            <Accordion
+              key={group}
+              defaultExpanded={group === "general"}
+              disableGutters
+              variant="outlined"
+              sx={{ "&::before": { display: "none" } }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography fontWeight={600}>
+                  {t(`workspace.configGroups.${group}`)}
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                {fields.map((field) => (
+                  <Box key={field.name} sx={{ mb: 2 }}>
+                    {field.content}
+                  </Box>
+                ))}
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
+      </Box>
+    );
   }
 
   return <DefaultObjectFieldTemplate {...props} />;

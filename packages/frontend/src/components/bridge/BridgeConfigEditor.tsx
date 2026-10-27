@@ -37,6 +37,7 @@ export interface BridgeConfigEditorProps {
   usedPorts: Record<number, string>;
   onSave: (config: BridgeConfig) => void | Promise<void>;
   onCancel: () => void | Promise<void>;
+  onDraftChange?: (config: BridgeConfig) => void;
 }
 
 export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
@@ -75,28 +76,27 @@ export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
     [props.bridgeId, props.usedPorts],
   );
 
-  const onChange = (data: object | undefined, isValid: boolean) => {
+  const onChange = (
+    data: object | undefined,
+    isValid: boolean,
+    initialDefaults = false,
+  ) => {
     // Preserve the icon field when FormEditor/JsonEditor updates
     // since icon is managed separately by BridgeIconUpload
     const prevIcon = (prev: object | undefined) => (prev as BridgeConfig)?.icon;
-    setConfig((prev) => {
-      const icon = prevIcon(prev);
-      return icon != null ? { ...data, icon } : { ...data };
-    });
+    const icon = prevIcon(config);
+    const next = icon != null ? { ...data, icon } : { ...data };
+    setConfig(next);
+    if (!initialDefaults) props.onDraftChange?.(next as BridgeConfig);
     setIsValid(isValid);
   };
 
-  const handleIconChange = useCallback((icon: BridgeIconType | undefined) => {
-    setConfig((prev) => {
-      if (icon != null) {
-        return { ...prev, icon };
-      }
-      const { icon: _, ...rest } = (prev ?? {}) as BridgeConfig & {
-        icon?: BridgeIconType;
-      };
-      return rest;
-    });
-  }, []);
+  const handleIconChange = (icon: BridgeIconType | undefined) => {
+    const { icon: _, ...rest } = (config ?? {}) as BridgeConfig;
+    const next = icon != null ? { ...rest, icon } : rest;
+    setConfig(next);
+    props.onDraftChange?.(next);
+  };
 
   const warnings = useMemo(() => {
     const cfg = config as Partial<BridgeConfig> | undefined;
@@ -153,23 +153,12 @@ export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
 
   return (
     <>
-      <Alert severity="warning" variant="outlined">
-        Please consult{" "}
+      <Typography variant="body2" color="text.secondary">
         <Link href={navigation.faq.bridgeConfig} target="_blank">
-          the documentation
+          {t("workspace.configReference")}
         </Link>{" "}
-        for proper bridge configurations.{" "}
-        <strong>
-          Especially if you are using labels, see the "Labels" section.
-        </strong>
-      </Alert>
-
-      <Alert severity="info" variant="outlined">
-        <strong>Community tip:</strong> Users have reported that bridges with a
-        large number of devices can become unstable depending on the controller.
-        If you experience connectivity issues, consider splitting your devices
-        across multiple bridges.
-      </Alert>
+        {t("workspace.configHelp")}
+      </Typography>
 
       {warnings.map((w) => (
         <Alert key={w.message} severity={w.severity} variant="outlined">
@@ -192,6 +181,11 @@ export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
             ) : (
               <LibraryBooks />
             )}
+            {t(
+              editorMode === BridgeEditorMode.FIELDS_EDITOR
+                ? "bridge.jsonEditor"
+                : "bridge.formEditor",
+            )}
           </Button>
         </Box>
 
@@ -201,6 +195,7 @@ export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
             onChange={onChange}
             schema={bridgeConfigSchema}
             uiSchema={{
+              "ui:submitButtonOptions": { norender: true },
               icon: { "ui:widget": "hidden" },
               featureFlags: { "ui:field": "featureFlags" },
               filter: {

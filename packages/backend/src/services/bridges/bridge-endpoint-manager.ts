@@ -790,41 +790,44 @@ export class BridgeEndpointManager extends Service {
     this._failedEntities = [];
     this.entityIds = this.registry.entityIds;
     const mountedBefore = new Set([...this.root.parts].map((p) => p.id));
+    for (const eid of this.entityIds) {
+      const m = this.getEntityMapping(eid);
+      if (m?.disabled) continue;
 
-    // Pre-calculate composed sub-entities so they get skipped
-    // during individual endpoint creation (requires mapping access).
-    if (this.registry.isAutoComposedDevicesEnabled()) {
-      for (const eid of this.entityIds) {
-        const m = this.getEntityMapping(eid);
-
-        // User-defined composed entities (#220)
-        if (m?.composedEntities) {
-          for (const sub of m.composedEntities) {
-            if (sub.entityId) {
-              this.registry.markComposedSubEntityUsed(sub.entityId);
-            }
+      // User-defined composed entities (#220)
+      if (
+        m?.composedEntities &&
+        (m.composeDevice || this.registry.isAutoComposedDevicesEnabled())
+      ) {
+        for (const sub of m.composedEntities) {
+          if (sub.entityId) {
+            this.registry.markComposedSubEntityUsed(sub.entityId);
           }
         }
-
-        // Auto-composed air purifier sub-entities
-        if (!eid.startsWith("fan.")) continue;
-        const matterType = m?.matterDeviceType ?? "fan";
-        if (matterType !== "air_purifier") continue;
-        const ent = this.registry.entity(eid);
-        // Manual mapping takes priority over auto-discovery
-        const tempId =
-          m?.temperatureEntity ||
-          (ent?.device_id
-            ? this.registry.findTemperatureEntityForDevice(ent.device_id)
-            : undefined);
-        const humId =
-          m?.humidityEntity ||
-          (ent?.device_id
-            ? this.registry.findHumidityEntityForDevice(ent.device_id)
-            : undefined);
-        if (tempId) this.registry.markComposedSubEntityUsed(tempId);
-        if (humId) this.registry.markComposedSubEntityUsed(humId);
       }
+
+      // Auto-composed air purifier sub-entities
+      if (
+        !this.registry.isAutoComposedDevicesEnabled() ||
+        !eid.startsWith("fan.")
+      )
+        continue;
+      const matterType = m?.matterDeviceType ?? "fan";
+      if (matterType !== "air_purifier") continue;
+      const ent = this.registry.entity(eid);
+      // Manual mapping takes priority over auto-discovery
+      const tempId =
+        m?.temperatureEntity ||
+        (ent?.device_id
+          ? this.registry.findTemperatureEntityForDevice(ent.device_id)
+          : undefined);
+      const humId =
+        m?.humidityEntity ||
+        (ent?.device_id
+          ? this.registry.findHumidityEntityForDevice(ent.device_id)
+          : undefined);
+      if (tempId) this.registry.markComposedSubEntityUsed(tempId);
+      if (humId) this.registry.markComposedSubEntityUsed(humId);
     }
 
     // Phase 0: resolve stable identities for every current entity before any
@@ -998,10 +1001,7 @@ export class BridgeEndpointManager extends Service {
         }
         this.mappingFingerprints.delete(endpoint.entityId);
         this.pendingRemovals.delete(endpoint.entityId);
-      } else if (
-        this.registry.isAutoComposedDevicesEnabled() &&
-        this.registry.isComposedSubEntityUsed(endpoint.entityId)
-      ) {
+      } else if (this.registry.isComposedSubEntityUsed(endpoint.entityId)) {
         // Entity was consumed by a composed device (e.g., temp/hum sensor
         // absorbed into an air purifier). Drop the standalone endpoint so the
         // composed device is the only representation (#218). close(), not
@@ -1152,10 +1152,7 @@ export class BridgeEndpointManager extends Service {
         continue;
       }
 
-      if (
-        this.registry.isAutoComposedDevicesEnabled() &&
-        this.registry.isComposedSubEntityUsed(entityId)
-      ) {
+      if (this.registry.isComposedSubEntityUsed(entityId)) {
         this.log.debug(
           `Skipping ${entityId}, already part of a composed device`,
         );

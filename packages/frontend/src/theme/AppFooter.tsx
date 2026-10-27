@@ -4,6 +4,7 @@ import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
 import Link from "@mui/material/Link";
 import { useTranslation } from "react-i18next";
+import { FloatingLanguageSwitcher } from "../components/misc/FloatingLanguageSwitcher.tsx";
 import { navigation } from "../routes.tsx";
 
 export const AppFooter = () => {
@@ -41,6 +42,9 @@ export const AppFooter = () => {
             </Button>
           </Grid>
         ))}
+        <Grid size="auto">
+          <FloatingLanguageSwitcher inline />
+        </Grid>
       </Grid>
     </Container>
   );

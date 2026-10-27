@@ -8,6 +8,7 @@ import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   mapDiagnosticsToPreflightRows,
   type NetworkDiagnosticResult,
@@ -21,6 +22,7 @@ const ALEXA_VENDOR_ID = 0x1217;
 
 interface PreflightPanelProps {
   port: number;
+  alexa?: boolean;
 }
 
 const severityFor = (
@@ -79,13 +81,15 @@ function RemediationRow({ row }: { row: PreflightRow }) {
 
 // Surfaces the existing network diagnostics inside the wizard so problems show
 // up before the user pairs. Never blocks: it is advisory only.
-export function PreflightPanel({ port }: PreflightPanelProps) {
+export function PreflightPanel({ port, alexa = true }: PreflightPanelProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<NetworkDiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDiagnostics = useCallback(async () => {
     setLoading(true);
+    setData(null);
     setError(null);
     try {
       const res = await fetch("api/network");
@@ -115,7 +119,10 @@ export function PreflightPanel({ port }: PreflightPanelProps) {
         Network preflight
       </Typography>
 
-      {alexaPortHint && (
+      <Button size="small" disabled={loading} onClick={fetchDiagnostics}>
+        {t("deviceWorkspace.refresh")}
+      </Button>
+      {alexa && alexaPortHint && (
         <Alert severity="warning" sx={{ mb: 1 }}>
           Alexa only pairs on port <strong>5540</strong>. This bridge uses port{" "}
           <strong>{port}</strong>, so Alexa will roll back the pairing. Keep the
@@ -131,7 +138,7 @@ export function PreflightPanel({ port }: PreflightPanelProps) {
         </Alert>
       )}
 
-      {summary && (
+      {!loading && summary && (
         <Box display="flex" gap={1} mb={1} flexWrap="wrap">
           {summary.pass > 0 && (
             <Chip
@@ -161,8 +168,12 @@ export function PreflightPanel({ port }: PreflightPanelProps) {
       )}
 
       {data && rows.length === 0 && (
-        <Alert severity="success">
-          All network checks passed. You are good to pair.
+        <Alert severity="info">
+          {t(
+            summary && summary.pass > 0
+              ? "deviceWorkspace.pair.checksPassed"
+              : "deviceWorkspace.pair.noChecks",
+          )}
         </Alert>
       )}
 

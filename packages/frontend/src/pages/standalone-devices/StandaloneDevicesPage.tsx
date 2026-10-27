@@ -69,7 +69,11 @@ function errorMessage(e: unknown): string | undefined {
   return (e as { message?: string } | undefined)?.message;
 }
 
-export const StandaloneDevicesPage = () => {
+export const StandaloneDevicesPage = ({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) => {
   const { t } = useTranslation();
   const notifications = useNotifications();
   const dispatch = useAppDispatch();
@@ -173,7 +177,7 @@ export const StandaloneDevicesPage = () => {
   );
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: embedded ? 0 : 2 }}>
       <Box
         sx={{
           display: "flex",
@@ -182,9 +186,11 @@ export const StandaloneDevicesPage = () => {
           mb: 1,
         }}
       >
-        <Typography variant="h5" component="h1">
-          {t("standaloneDevices.title", "Standalone Devices")}
-        </Typography>
+        {!embedded && (
+          <Typography variant="h5" component="h1">
+            {t("standaloneDevices.title", "Standalone Devices")}
+          </Typography>
+        )}
         <Button
           variant="contained"
           startIcon={<Add />}

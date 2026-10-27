@@ -62,7 +62,7 @@ interface FailedEntityInfo extends FailedEntity {
   bridgeName: string;
 }
 
-export const DevicesPage = () => {
+export const DevicesPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { content: bridges, isLoading: bridgesLoading } = useBridges();
@@ -330,14 +330,18 @@ export const DevicesPage = () => {
   }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: embedded ? 0 : 2 }}>
       <Typography
         variant="h4"
         gutterBottom
         sx={{ display: "flex", alignItems: "center", gap: 2 }}
       >
-        <DevicesIcon />
-        {t("nav.devices")}
+        {!embedded && (
+          <>
+            <DevicesIcon />
+            {t("nav.devices")}
+          </>
+        )}
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}

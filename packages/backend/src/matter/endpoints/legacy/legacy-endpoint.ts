@@ -90,10 +90,7 @@ export class LegacyEndpoint extends EntityEndpoint {
       );
       return;
     }
-    if (
-      registry.isAutoComposedDevicesEnabled() &&
-      registry.isComposedSubEntityUsed(entityId)
-    ) {
+    if (registry.isComposedSubEntityUsed(entityId)) {
       logger.debug(
         `Skipping ${entityId} - already consumed by a composed device`,
       );
@@ -107,7 +104,7 @@ export class LegacyEndpoint extends EntityEndpoint {
     if (entity.device_id) {
       // 1. Auto-assign humidity entity to temperature sensors FIRST
       // Only applies when autoHumidityMapping feature flag is enabled (default: true)
-      if (registry.isAutoHumidityMappingEnabled()) {
+      if (registry.isAutoHumidityMappingEnabled() && !mapping?.composeDevice) {
         const attrs = state.attributes as SensorDeviceAttributes;
         if (
           !mapping?.humidityEntity &&
@@ -132,7 +129,7 @@ export class LegacyEndpoint extends EntityEndpoint {
       }
 
       // 2. Auto-assign pressure entity to temperature sensors
-      if (registry.isAutoPressureMappingEnabled()) {
+      if (registry.isAutoPressureMappingEnabled() && !mapping?.composeDevice) {
         const attrs = state.attributes as SensorDeviceAttributes;
         if (
           !mapping?.pressureEntity &&
@@ -165,6 +162,7 @@ export class LegacyEndpoint extends EntityEndpoint {
       const isVacuum = entityId.startsWith("vacuum.");
       if (
         (registry.isAutoBatteryMappingEnabled() || isVacuum) &&
+        !mapping?.composeDevice &&
         !mapping?.batteryEntity &&
         !mapping?.disableBatteryMapping
       ) {
@@ -255,7 +253,7 @@ export class LegacyEndpoint extends EntityEndpoint {
       // 4. Auto-assign power entity to switch/plug entities.
       // Not lights: an outlet's indicator light would grab the outlet's power
       // sensor, and electrical clusters on a light endpoint break Aqara (#374).
-      if (!mapping?.powerEntity) {
+      if (!mapping?.powerEntity && !mapping?.composeDevice) {
         const domain = entityId.split(".")[0];
         if (domain === "switch") {
           const powerEntityId = registry.findPowerEntityForDevice(
@@ -276,7 +274,7 @@ export class LegacyEndpoint extends EntityEndpoint {
 
       // 5. Auto-assign energy entity to switch/plug entities.
       // Lights excluded for the same reason as power above (#374).
-      if (!mapping?.energyEntity) {
+      if (!mapping?.energyEntity && !mapping?.composeDevice) {
         const domain = entityId.split(".")[0];
         if (domain === "switch") {
           const energyEntityId = registry.findEnergyEntityForDevice(
@@ -442,7 +440,8 @@ export class LegacyEndpoint extends EntityEndpoint {
     // Matter composed device under a BridgedNodeEndpoint parent.
     if (
       !standalone &&
-      registry.isAutoComposedDevicesEnabled() &&
+      (registry.isAutoComposedDevicesEnabled() ||
+        effectiveMapping?.composeDevice) &&
       effectiveMapping?.composedEntities &&
       effectiveMapping.composedEntities.length > 0
     ) {

@@ -1,0 +1,272 @@
+import {
+  type BridgeDataWithMetadata,
+  BridgeStatus,
+  HomeAssistantMatcherType,
+} from "@home-assistant-matter-hub/common";
+import { ThemeProvider } from "@mui/material/styles";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchBridges } from "../../api/bridges.ts";
+import { appTheme } from "../../theme/theme.ts";
+import { HomePage } from "./HomePage.tsx";
+
+vi.mock("../../api/bridges.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/bridges.ts")>()),
+  fetchBridges: vi.fn(),
+}));
+vi.mock("./PairingChecklist.tsx", () => ({ PairingChecklist: () => null }));
+
+const update = vi.fn();
+const dispatch = vi.fn();
+let bridges: BridgeDataWithMetadata[];
+vi.mock("../../hooks/data/bridges.ts", () => ({
+  useBridges: () => ({ content: bridges, isLoading: false }),
+  useUpdateBridge: () => update,
+}));
+vi.mock("../../state/hooks.ts", () => ({ useAppDispatch: () => dispatch }));
+vi.mock("../../routes.tsx", () => ({
+  navigation: {
+    bridge: (id: string) => `/bridges/${id}`,
+    editBridge: (id: string) => `/bridges/${id}/edit`,
+    hub: (id: string, view: string, section: string) =>
+      `/?hub=${id}&view=${view}&section=${section}`,
+  },
+}));
+vi.mock("../../components/bridge/BridgeDetails.tsx", () => ({
+  PairingCard: () => <div>Pairing code</div>,
+  FabricsCard: () => <div>Paired controllers</div>,
+}));
+vi.mock("../../components/bridge/PreflightPanel.tsx", () => ({
+  PreflightPanel: () => null,
+}));
+vi.mock("../../components/bridge/FilterPreview.tsx", () => ({
+  FilterPreview: () => <div>Advanced filter preview</div>,
+}));
+vi.mock("./EntityPicker.tsx", () => ({
+  EntityPicker: ({
+    onChange,
+    selected,
+  }: {
+    onChange: (ids: string[]) => void;
+    selected: string[];
+  }) => (
+    <button type="button" onClick={() => onChange([])}>
+      Clear selection {selected.join(",")}
+    </button>
+  ),
+}));
+
+function bridge(id: string): BridgeDataWithMetadata {
+  return {
+    id,
+    name: `Hub ${id}`,
+    port: 5540,
+    status: BridgeStatus.Running,
+    deviceCount: 1,
+    filter: {
+      include: [
+        { type: HomeAssistantMatcherType.Pattern, value: "light.desk" },
+      ],
+      exclude: [],
+    },
+    featureFlags: { stableIdentity: true },
+    priority: 12,
+    basicInformation: {
+      vendorId: 1,
+      vendorName: "Test",
+      productId: 1,
+      productName: "Test",
+      productLabel: "Test",
+      hardwareVersion: 1,
+      softwareVersion: 1,
+    },
+  };
+}
+
+function renderHome() {
+  const router = createMemoryRouter([
+    { path: "/", element: <HomePage /> },
+    { path: "/setup", element: <div>New hub</div> },
+  ]);
+  render(
+    <ThemeProvider theme={appTheme}>
+      <RouterProvider router={router} />
+    </ThemeProvider>,
+  );
+  return router;
+}
+
+beforeEach(() => {
+  bridges = [bridge("one"), bridge("two")];
+  vi.mocked(fetchBridges).mockImplementation(async () => bridges);
+  update.mockReset();
+  update.mockImplementation(async (request) => {
+    bridges = bridges.map((item) =>
+      item.id === request.id ? { ...item, ...request } : item,
+    );
+    return bridges[0];
+  });
+});
+afterEach(cleanup);
+
+describe("home workspace", () => {
+  async function approve() {
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("checkbox", {
+        name: "I reviewed the changes and their impact",
+      }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Apply changes" }),
+    );
+  }
+  it("applies an empty selection safely while preserving hub identity and configuration", async () => {
+    renderHome();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    expect(update).not.toHaveBeenCalled();
+    await approve();
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0]).toMatchObject({
+      id: "one",
+      port: 5540,
+      priority: 12,
+      featureFlags: { stableIdentity: true },
+      filter: { include: [{ type: "regex", value: "^$" }], exclude: [] },
+    });
+    expect(update.mock.calls[0][0]).not.toHaveProperty("basicInformation");
+    expect(update.mock.calls[0][0]).not.toHaveProperty("status");
+    expect(await screen.findByText(/Sharing updated/)).toBeInTheDocument();
+  });
+
+  it("protects pending changes when switching hubs", async () => {
+    const router = renderHome();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Your hub" }));
+    await userEvent.click(screen.getByRole("option", { name: "Hub two" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "Discard unsaved changes?",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(router.state.location.search).toBe("");
+    expect(
+      await screen.findByRole("button", { name: "Apply changes" }),
+    ).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("does not rewrite an existing wildcard hub", () => {
+    bridges[0] = {
+      ...bridge("one"),
+      filter: {
+        include: [{ type: HomeAssistantMatcherType.Pattern, value: "*" }],
+        exclude: [],
+      },
+    };
+    renderHome();
+    expect(
+      screen.getByText(/This hub uses advanced rules/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Clear selection/ }),
+    ).not.toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("waits for an in-flight save before completing navigation", async () => {
+    let finish!: (updated: BridgeDataWithMetadata) => void;
+    update.mockImplementationOnce(
+      () =>
+        new Promise<BridgeDataWithMetadata>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const router = renderHome();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    await approve();
+    await act(async () => {
+      await router.navigate("/?hub=one&view=pair");
+    });
+    expect(router.state.location.search).toBe("");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Review changes");
+    await act(async () => {
+      bridges[0] = {
+        ...bridges[0],
+        filter: {
+          include: [{ type: HomeAssistantMatcherType.Regex, value: "^$" }],
+          exclude: [],
+        },
+      };
+      finish(bridges[0]);
+    });
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?hub=one&view=pair"),
+    );
+    expect(screen.getByText("Pairing code")).toBeInTheDocument();
+  });
+
+  it("keeps edits and shows the error when saving fails", async () => {
+    update.mockRejectedValueOnce(new Error("HA is unavailable"));
+    renderHome();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    await approve();
+    expect(
+      await screen.findByText(/HA is unavailable.*Inspect/),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Apply changes",
+      }),
+    ).toBeEnabled();
+  });
+  it("refuses a selection apply when the server filter has changed", async () => {
+    renderHome();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Clear selection/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    vi.mocked(fetchBridges).mockResolvedValue([
+      { ...bridge("one"), filter: { include: [], exclude: [] } },
+    ]);
+    await approve();
+    await screen.findByText(/No automatic retry/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("starts an empty home with one clear setup action", () => {
+    bridges = [];
+    renderHome();
+    expect(
+      screen.getByRole("link", { name: "Connect your home" }),
+    ).toHaveAttribute("href", "/setup");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+});

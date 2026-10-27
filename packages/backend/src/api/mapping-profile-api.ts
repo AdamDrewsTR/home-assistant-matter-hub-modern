@@ -64,6 +64,8 @@ function configToProfileEntry(
     disableMomentaryFlip: config.disableMomentaryFlip,
     vacuumAscendingRoomOrder: config.vacuumAscendingRoomOrder,
     vacuumRoomSwitches: config.vacuumRoomSwitches,
+    composedEntities: config.composedEntities,
+    composeDevice: config.composeDevice,
   };
 }
 
@@ -249,6 +251,8 @@ export function mappingProfileApi(
           disableMomentaryFlip: entry.disableMomentaryFlip,
           vacuumAscendingRoomOrder: entry.vacuumAscendingRoomOrder,
           vacuumRoomSwitches: entry.vacuumRoomSwitches,
+          composedEntities: entry.composedEntities,
+          composeDevice: entry.composeDevice,
         });
         applied++;
       } catch (e) {

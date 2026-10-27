@@ -11,8 +11,8 @@ import {
 import Backdrop from "@mui/material/Backdrop";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
 import CircularProgress from "@mui/material/CircularProgress";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -139,94 +139,121 @@ export const BridgesPage = () => {
       <Stack spacing={4}>
         {bridges && (
           <>
-            <Box
-              display="flex"
-              justifyContent="end"
-              flexWrap="wrap"
-              gap={1}
-              paddingTop={{ xs: 1, sm: 0 }}
-            >
-              {bridges.length >= 1 && (
-                <>
+            <Card variant="outlined" sx={{ p: 2.5 }}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <Button
+                  component={Link}
+                  to={navigation.setup}
+                  startIcon={<Add />}
+                  variant="contained"
+                >
+                  {t("modern.addHub")}
+                </Button>
+                <Button
+                  onClick={handleImportClick}
+                  startIcon={<Download />}
+                  variant="outlined"
+                >
+                  {t("common.import")}
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  startIcon={<Upload />}
+                  variant="outlined"
+                  disabled={!bridges.length}
+                >
+                  {t("common.exportAll")}
+                </Button>
+              </Stack>
+              <Box
+                component="details"
+                sx={{
+                  mt: 2.5,
+                  pt: 2,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Box
+                  component="summary"
+                  sx={{ cursor: "pointer", color: "text.secondary" }}
+                >
+                  {t("workspace.batchTools")}
+                </Box>
+                <Box
+                  display="flex"
+                  justifyContent="end"
+                  flexWrap="wrap"
+                  gap={1}
+                  paddingTop={{ xs: 1, sm: 0 }}
+                >
+                  {bridges.length >= 1 && (
+                    <>
+                      <Button
+                        onClick={() => handleBulkAction("start")}
+                        startIcon={<PlayArrow />}
+                        variant="outlined"
+                        size="small"
+                        color="success"
+                        disabled={bulkLoading}
+                      >
+                        {t("common.startAll")}
+                      </Button>
+                      <Button
+                        onClick={() => handleBulkAction("stop")}
+                        startIcon={<Stop />}
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        disabled={bulkLoading}
+                      >
+                        {t("common.stopAll")}
+                      </Button>
+                      <Button
+                        onClick={() => handleBulkAction("restart")}
+                        startIcon={<RestartAlt />}
+                        variant="outlined"
+                        size="small"
+                        color="warning"
+                        disabled={bulkLoading}
+                      >
+                        {t("common.restartAll")}
+                      </Button>
+                    </>
+                  )}
                   <Button
-                    onClick={() => handleBulkAction("start")}
-                    startIcon={<PlayArrow />}
+                    component={Link}
+                    to={navigation.areaSetup}
+                    startIcon={<MapIcon />}
                     variant="outlined"
-                    size="small"
-                    color="success"
-                    disabled={bulkLoading}
                   >
-                    {t("common.startAll")}
+                    {t("workspace.tools.areas")}
                   </Button>
                   <Button
-                    onClick={() => handleBulkAction("stop")}
-                    startIcon={<Stop />}
+                    onClick={() => setWizardOpen(true)}
+                    startIcon={<AutoFixHigh />}
                     variant="outlined"
-                    size="small"
-                    color="error"
-                    disabled={bulkLoading}
                   >
-                    {t("common.stopAll")}
+                    {t("workspace.multiHubWizard")}
                   </Button>
                   <Button
-                    onClick={() => handleBulkAction("restart")}
-                    startIcon={<RestartAlt />}
+                    component={Link}
+                    to={navigation.advancedSetup}
+                    endIcon={<Add />}
                     variant="outlined"
-                    size="small"
-                    color="warning"
-                    disabled={bulkLoading}
                   >
-                    {t("common.restartAll")}
+                    {t("modern.advancedSetup")}
                   </Button>
-                  <Divider orientation="vertical" flexItem />
-                </>
-              )}
-              <Button
-                onClick={handleImportClick}
-                startIcon={<Download />}
-                variant="outlined"
-              >
-                {t("common.import")}
-              </Button>
-              <Button
-                onClick={handleExport}
-                startIcon={<Upload />}
-                variant="outlined"
-                disabled={bridges.length === 0}
-              >
-                {t("common.exportAll")}
-              </Button>
-              <Button
-                component={Link}
-                to={navigation.areaSetup}
-                startIcon={<MapIcon />}
-                variant="outlined"
-              >
-                {t("areaSetup.title")}
-              </Button>
-              <Button
-                onClick={() => setWizardOpen(true)}
-                startIcon={<AutoFixHigh />}
-                variant="outlined"
-              >
-                {t("bridgeWizard.title")}
-              </Button>
-              <Button
-                component={Link}
-                to={navigation.createBridge}
-                endIcon={<Add />}
-                variant="outlined"
-              >
-                {t("dashboard.createBridge")}
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".json"
-                style={{ display: "none" }}
-              />
-            </Box>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".json"
+                    style={{ display: "none" }}
+                  />
+                </Box>
+              </Box>
+            </Card>
 
             <BridgeList bridges={bridges} />
           </>

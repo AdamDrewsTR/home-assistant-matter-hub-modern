@@ -94,7 +94,7 @@ export const BridgeDetails = ({ bridge }: BridgeDetailsProps) => {
   );
 };
 
-const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
+export const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -241,7 +241,7 @@ const PairingCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   );
 };
 
-const InfoCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
+export const InfoCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   const { t } = useTranslation();
   return (
     <Card sx={{ height: "100%" }}>
@@ -309,7 +309,7 @@ const InfoCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   );
 };
 
-const FabricsCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
+export const FabricsCard = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   const { t } = useTranslation();
   const fabrics = bridge.commissioning?.fabrics ?? [];
   const [syncing, setSyncing] = useState(false);
@@ -574,7 +574,11 @@ const PairingDialog = ({
   );
 };
 
-const ControllerWarnings = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
+export const ControllerWarnings = ({
+  bridge,
+}: {
+  bridge: BridgeDataWithMetadata;
+}) => {
   const warnings = bridge.controllerWarnings;
   if (!warnings || warnings.length === 0) {
     return null;
@@ -615,7 +619,11 @@ const ControllerWarnings = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
   );
 };
 
-const FailedEntities = ({ bridge }: { bridge: BridgeDataWithMetadata }) => {
+export const FailedEntities = ({
+  bridge,
+}: {
+  bridge: BridgeDataWithMetadata;
+}) => {
   const failedEntities = bridge.failedEntities;
   if (!failedEntities || failedEntities.length === 0) {
     return null;

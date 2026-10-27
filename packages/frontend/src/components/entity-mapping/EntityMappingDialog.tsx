@@ -111,6 +111,8 @@ interface EntityMappingDialogProps {
   entityId: string;
   domain: string;
   currentMapping?: EntityMappingConfig;
+  error?: string | null;
+  saving?: boolean;
   onSave: (config: Partial<EntityMappingConfig>) => void;
   onClose: () => void;
 }
@@ -120,6 +122,8 @@ export function EntityMappingDialog({
   entityId,
   domain,
   currentMapping,
+  error,
+  saving,
   onSave,
   onClose,
 }: EntityMappingDialogProps) {
@@ -405,6 +409,7 @@ export function EntityMappingDialog({
           }
         : undefined;
     onSave({
+      ...currentMapping,
       entityId: editEntityId.trim(),
       matterDeviceType: matterDeviceType || undefined,
       customName: customName.trim() || undefined,
@@ -488,6 +493,9 @@ export function EntityMappingDialog({
               .filter((e) => e.entityId?.trim())
               .map(({ _key: _, ...rest }) => rest)
           : undefined,
+      composeDevice: composedEntities.some((part) => part.entityId?.trim())
+        ? currentMapping?.composeDevice
+        : undefined,
     });
   }, [
     editEntityId,
@@ -554,6 +562,7 @@ export function EntityMappingDialog({
     disableMomentaryFlip,
     composedEntities,
     onSave,
+    currentMapping,
   ]);
 
   // Show filter life entity field for air purifiers (fan domain or explicit air_purifier type)
@@ -656,13 +665,23 @@ export function EntityMappingDialog({
     ] || [];
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={() => !saving && onClose()}
+      maxWidth="sm"
+      fullWidth
+    >
       <DialogTitle>
         {isNewMapping
           ? t("mapping.addMapping")
           : `${t("common.edit")}: ${entityId}`}
       </DialogTitle>
-      <DialogContent>
+      <DialogContent inert={saving || undefined}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
         {isNewMapping && (
           <EntityAutocomplete
             value={editEntityId}
@@ -1745,8 +1764,9 @@ export function EntityMappingDialog({
             sx={{ mb: 1, display: "block" }}
           >
             Group additional HA entities into this device. Each entity becomes a
-            sub-endpoint under a shared Matter device. Requires the
-            autoComposedDevices feature flag.
+            sub-endpoint under a shared Matter device. Bundles created in the
+            workspace are enabled for this device only; other mappings require
+            the autoComposedDevices feature flag.
           </Typography>
           {composedEntities.map((sub, index) => (
             <Box
@@ -1874,11 +1894,13 @@ export function EntityMappingDialog({
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button disabled={saving} onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
         <Button
           onClick={handleSave}
           variant="contained"
-          disabled={!editEntityId.trim()}
+          disabled={saving || !editEntityId.trim()}
         >
           {t("common.save")}
         </Button>

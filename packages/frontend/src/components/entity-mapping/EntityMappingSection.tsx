@@ -43,6 +43,7 @@ import {
   exportMappingProfile,
   previewMappingProfileImport,
 } from "../../api/mapping-profiles.js";
+import { ConfirmDialog } from "../misc/ConfirmDialog.tsx";
 import { EntityMappingDialog } from "./EntityMappingDialog.js";
 
 interface EntityMappingSectionProps {
@@ -56,6 +57,10 @@ export function EntityMappingSection({ bridgeId }: EntityMappingSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string>();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [saving, setSaving] = useState(false);
   const [editingEntity, setEditingEntity] = useState<{
     entityId: string;
     domain: string;
@@ -118,16 +123,27 @@ export function EntityMappingSection({ bridgeId }: EntityMappingSectionProps) {
   const handleSave = useCallback(
     async (config: Partial<EntityMappingConfig>) => {
       if (!config.entityId) return;
+      setSaving(true);
+      setError(null);
       try {
-        await updateEntityMapping(bridgeId, config.entityId, config);
+        await updateEntityMapping(bridgeId, config.entityId, {
+          ...config,
+          expectedMapping: editingEntity?.config ?? null,
+        });
         setDialogOpen(false);
         setEditingEntity(null);
         await loadMappings();
-      } catch {
-        setError(t("mapping.saveFailed", { error: "" }));
+      } catch (cause) {
+        setError(
+          t("mapping.saveFailed", {
+            error: cause instanceof Error ? cause.message : String(cause),
+          }),
+        );
+      } finally {
+        setSaving(false);
       }
     },
-    [bridgeId, loadMappings, t],
+    [bridgeId, loadMappings, t, editingEntity],
   );
 
   const handleClose = useCallback(() => {
@@ -278,12 +294,13 @@ export function EntityMappingSection({ bridgeId }: EntityMappingSectionProps) {
           justifyContent="space-between"
           alignItems="center"
           mb={2}
+          sx={{ flexWrap: "wrap", gap: 2 }}
         >
           <Typography variant="h6">
             <SettingsIcon sx={{ mr: 1, verticalAlign: "middle" }} />
             {t("mapping.title")}
           </Typography>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {mappingsList.length > 0 && (
               <Button
                 variant="outlined"
@@ -345,82 +362,157 @@ export function EntityMappingSection({ bridgeId }: EntityMappingSectionProps) {
         )}
 
         {!loading && mappingsList.length > 0 && (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t("mapping.entityId")}</TableCell>
-                  <TableCell>{t("mapping.deviceType")}</TableCell>
-                  <TableCell>{t("mapping.customName")}</TableCell>
-                  <TableCell>{t("mapping.status")}</TableCell>
-                  <TableCell align="right">{t("common.actions")}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {mappingsList.map((config) => (
-                  <TableRow key={config.entityId}>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
+          <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField
+                fullWidth
+                label={t("deviceWorkspace.searchMappings")}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <TextField
+                select
+                slotProps={{ select: { native: true } }}
+                label={t("mapping.status")}
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                sx={{ minWidth: 180 }}
+              >
+                <option value="all">{t("deviceWorkspace.allMappings")}</option>
+                <option value="enabled">{t("common.enabled")}</option>
+                <option value="disabled">{t("common.disabled")}</option>
+                <option value="bundled">{t("deviceWorkspace.bundle")}</option>
+              </TextField>
+            </Stack>
+            {mappingsList
+              .filter(
+                (config) =>
+                  JSON.stringify(config)
+                    .toLowerCase()
+                    .includes(search.toLowerCase()) &&
+                  (statusFilter === "all" ||
+                    (statusFilter === "disabled"
+                      ? config.disabled
+                      : statusFilter === "enabled"
+                        ? !config.disabled
+                        : !!config.composedEntities?.length)),
+              )
+              .map((config) => (
+                <Card key={config.entityId} variant="outlined" sx={{ p: 2 }}>
+                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        fontWeight={600}
+                        sx={{ overflowWrap: "anywhere" }}
+                      >
+                        {config.customName || config.entityId}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ overflowWrap: "anywhere" }}
+                      >
                         {config.entityId}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {config.matterDeviceType || (
-                        <Typography color="text.secondary" variant="body2">
-                          Auto
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {config.customName || (
-                        <Typography color="text.secondary" variant="body2">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {config.disabled ? (
-                        <Chip
-                          label={t("common.disabled")}
-                          color="error"
-                          size="small"
-                        />
-                      ) : (
-                        <Chip
-                          label={t("common.enabled")}
-                          color="success"
-                          size="small"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleEditMapping(config.entityId, config)
-                        }
-                        aria-label={`Edit mapping for ${config.entityId}`}
+                      <Stack
+                        direction="row"
+                        gap={1}
+                        flexWrap="wrap"
+                        sx={{ my: 1 }}
                       >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteMapping(config.entityId)}
-                        aria-label={`Delete mapping for ${config.entityId}`}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        <Chip
+                          size="small"
+                          label={
+                            config.matterDeviceType ||
+                            t("bundles.automaticType")
+                          }
+                        />
+                        <Chip
+                          size="small"
+                          label={t(
+                            config.disabled
+                              ? "common.disabled"
+                              : "common.enabled",
+                          )}
+                          color={config.disabled ? "default" : "success"}
+                          variant="outlined"
+                        />
+                      </Stack>
+                    </Box>
+                    <IconButton
+                      onClick={() => handleEditMapping(config.entityId, config)}
+                      aria-label={`Edit mapping for ${config.entityId}`}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => setPendingDelete(config.entityId)}
+                      aria-label={`Delete mapping for ${config.entityId}`}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                  <Box component="details">
+                    <Box
+                      component="summary"
+                      sx={{ cursor: "pointer", color: "text.secondary" }}
+                    >
+                      {t("deviceWorkspace.mappingDetails")}
+                    </Box>
+                    <Box component="dl" sx={{ m: 0, mt: 1 }}>
+                      {Object.entries(config)
+                        .filter(
+                          ([key, value]) =>
+                            value !== undefined && key !== "entityId",
+                        )
+                        .map(([key, value]) => (
+                          <Box key={key} sx={{ mb: 1 }}>
+                            <Typography
+                              component="dt"
+                              variant="caption"
+                              fontWeight={600}
+                            >
+                              {key}
+                            </Typography>
+                            <Typography
+                              component="dd"
+                              variant="body2"
+                              sx={{ m: 0, overflowWrap: "anywhere" }}
+                            >
+                              {typeof value === "object"
+                                ? JSON.stringify(value)
+                                : String(value)}
+                            </Typography>
+                          </Box>
+                        ))}
+                    </Box>
+                  </Box>
+                </Card>
+              ))}
+            {!mappingsList.some(
+              (config) =>
+                JSON.stringify(config)
+                  .toLowerCase()
+                  .includes(search.toLowerCase()) &&
+                (statusFilter === "all" ||
+                  (statusFilter === "disabled"
+                    ? config.disabled
+                    : statusFilter === "enabled"
+                      ? !config.disabled
+                      : !!config.composedEntities?.length)),
+            ) && (
+              <Typography color="text.secondary">
+                {t("modern.noResults")}
+              </Typography>
+            )}
+          </Stack>
         )}
       </CardContent>
 
       {editingEntity && (
         <EntityMappingDialog
+          error={error}
+          saving={saving}
           open={dialogOpen}
           entityId={editingEntity.entityId}
           domain={editingEntity.domain}
@@ -429,6 +521,20 @@ export function EntityMappingSection({ bridgeId }: EntityMappingSectionProps) {
           onClose={handleClose}
         />
       )}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={t("bundles.removeTitle")}
+        message={t("bundles.removeWarning", { entity: pendingDelete })}
+        confirmLabel={t("common.delete")}
+        confirmColor="error"
+        onCancel={() => setPendingDelete(undefined)}
+        onConfirm={() => {
+          if (pendingDelete) {
+            void handleDeleteMapping(pendingDelete);
+            setPendingDelete(undefined);
+          }
+        }}
+      />
 
       <Dialog
         open={exportDialogOpen}

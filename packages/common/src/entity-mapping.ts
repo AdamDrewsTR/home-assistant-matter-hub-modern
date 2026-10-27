@@ -59,6 +59,21 @@ export type MatterDeviceType =
   | "water_valve"
   | "window_covering";
 
+export function entityMappingReferences(
+  mapping: Partial<EntityMappingConfig>,
+): string[] {
+  return [
+    ...new Set([
+      ...(mapping.entityId ? [mapping.entityId] : []),
+      ...Object.entries(mapping).flatMap(([key, value]) =>
+        key.endsWith("Entity") && typeof value === "string" ? [value] : [],
+      ),
+      ...(mapping.roomEntities ?? []),
+      ...(mapping.composedEntities ?? []).map((part) => part.entityId),
+    ]),
+  ];
+}
+
 export interface ComposedSubEntity {
   readonly entityId: string;
   readonly matterDeviceType?: MatterDeviceType;
@@ -106,10 +121,12 @@ export interface EntityMappingConfig {
   /**
    * Optional: Array of additional entities to compose into this device.
    * Each entry becomes a sub-endpoint under a shared BridgedNodeEndpoint.
-   * Requires the autoComposedDevices feature flag.
+   * Requires autoComposedDevices or composeDevice on this mapping.
    * Example: [{ entityId: "sensor.temperature", matterDeviceType: "temperature_sensor" }]
    */
   readonly composedEntities?: ComposedSubEntity[];
+  /** Explicit composition of this device only, without bridge-wide auto grouping. */
+  readonly composeDevice?: boolean;
   /**
    * Optional: Entity ID of a sensor that provides filter life percentage (0-100).
    * Used for Air Purifiers to show HEPA filter life in Matter controllers.
@@ -564,6 +581,13 @@ export interface EntityMappingRequest {
   readonly climateExposeFan?: boolean;
   readonly climateAutoMode?: ClimateAutoMode;
   readonly composedEntities?: ComposedSubEntity[];
+  readonly composeDevice?: boolean;
+  /** Reject new mappings when any member already has a mapping or an owner. */
+  readonly onlyIfUnmapped?: boolean;
+  /** Optimistic concurrency guard for visual edits; null means no stored mapping. */
+  readonly expectedMapping?: EntityMappingConfig | null;
+  readonly faultEntity?: string;
+  readonly operationalStateEntity?: string;
   readonly disableMomentaryFlip?: boolean;
 }
 

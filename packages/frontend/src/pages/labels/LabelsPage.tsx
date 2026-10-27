@@ -113,7 +113,7 @@ const ValueList = ({
   );
 };
 
-export const LabelsPage = () => {
+export const LabelsPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { t } = useTranslation();
   const [labels, setLabels] = useState<HomeAssistantLabel[]>([]);
   const [areas, setAreas] = useState<HomeAssistantArea[]>([]);
@@ -160,11 +160,13 @@ export const LabelsPage = () => {
   }
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
-        <FilterListIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-        {t("labels.title")}
-      </Typography>
+    <Box sx={{ p: embedded ? 0 : 2 }}>
+      {!embedded && (
+        <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
+          <FilterListIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+          {t("labels.title")}
+        </Typography>
+      )}
 
       <Alert severity="info" sx={{ mb: 3 }}>
         {t("labels.info")}

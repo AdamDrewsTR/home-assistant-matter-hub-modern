@@ -29,6 +29,52 @@ function missingSince(m: unknown): string | undefined {
 }
 
 describe("EntityMappingStorage orphan tombstone", () => {
+  it("persists alarm and appliance companions even without another override", async () => {
+    const storage = new EntityMappingStorage(appStorage);
+    await storage.construction;
+    await storage.setMapping({
+      bridgeId: "b",
+      entityId: "binary_sensor.smoke",
+      faultEntity: "binary_sensor.fault",
+    });
+    await storage.setMapping({
+      bridgeId: "b",
+      entityId: "sensor.washer",
+      operationalStateEntity: "sensor.state",
+    });
+    await storage.flush();
+    const reloaded = new EntityMappingStorage(appStorage);
+    await reloaded.construction;
+    expect(reloaded.getMapping("b", "binary_sensor.smoke")?.faultEntity).toBe(
+      "binary_sensor.fault",
+    );
+    expect(
+      reloaded.getMapping("b", "sensor.washer")?.operationalStateEntity,
+    ).toBe("sensor.state");
+  });
+  it("persists per-device composition without requiring a bridge-wide flag", async () => {
+    const storage = new EntityMappingStorage(appStorage);
+    await storage.construction;
+    await storage.setMapping({
+      bridgeId: "b",
+      entityId: "sensor.temperature",
+      composeDevice: true,
+      customName: "Room monitor",
+      composedEntities: [
+        { entityId: "sensor.humidity", matterDeviceType: "humidity_sensor" },
+      ],
+    });
+    await storage.flush();
+    const reloaded = new EntityMappingStorage(appStorage);
+    await reloaded.construction;
+    expect(reloaded.getMapping("b", "sensor.temperature")).toMatchObject({
+      composeDevice: true,
+      customName: "Room monitor",
+      composedEntities: [
+        { entityId: "sensor.humidity", matterDeviceType: "humidity_sensor" },
+      ],
+    });
+  });
   it("marks once keeping first-seen, and round-trips missingSince through a flushed reload", async () => {
     const storage = new EntityMappingStorage(appStorage);
     await storage.construction;

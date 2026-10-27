@@ -1,21 +1,22 @@
 import { createTheme } from "@mui/material/styles";
 
 export const appTheme = createTheme({
+  cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
     light: {
       palette: {
         primary: {
-          main: "#1976d2",
-          light: "#42a5f5",
-          dark: "#1565c0",
+          main: "#136a54",
+          light: "#3a967b",
+          dark: "#0c4d3e",
         },
         secondary: {
-          main: "#9c27b0",
-          light: "#ba68c8",
-          dark: "#7b1fa2",
+          main: "#4569a8",
+          light: "#7596d7",
+          dark: "#304c7d",
         },
         background: {
-          default: "#f5f5f5",
+          default: "#f3f6f9",
           paper: "#ffffff",
         },
       },
@@ -23,27 +24,31 @@ export const appTheme = createTheme({
     dark: {
       palette: {
         primary: {
-          main: "#90caf9",
-          light: "#e3f2fd",
-          dark: "#42a5f5",
+          main: "#9df3d0",
+          light: "#c5ffe7",
+          dark: "#67c8a4",
+          contrastText: "#102d25",
         },
         secondary: {
-          main: "#ce93d8",
-          light: "#f3e5f5",
-          dark: "#ab47bc",
+          main: "#a2bfff",
+          light: "#cedcff",
+          dark: "#7596d7",
         },
         background: {
-          default: "#121212",
-          paper: "#1e1e1e",
+          default: "#0b1018",
+          paper: "#121b27",
         },
+        text: { primary: "#edf2f8", secondary: "#9aaac0" },
+        divider: "#253142",
       },
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     h1: {
-      fontSize: "2.5rem",
-      fontWeight: 500,
+      fontSize: "clamp(2rem, 4vw, 3.2rem)",
+      fontWeight: 600,
+      letterSpacing: "-0.045em",
     },
     h2: {
       fontSize: "2rem",
@@ -67,17 +72,16 @@ export const appTheme = createTheme({
     },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 12,
   },
   components: {
     MuiCard: {
       styleOverrides: {
         root: {
-          transition: "transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out",
-          "&:hover": {
-            transform: "translateY(-2px)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-          },
+          backgroundImage: "none",
+          boxShadow: "none",
+          border: "1px solid",
+          borderColor: "var(--mui-palette-divider)",
         },
       },
     },
@@ -86,6 +90,8 @@ export const appTheme = createTheme({
         root: {
           textTransform: "none",
           fontWeight: 500,
+          boxShadow: "none",
+          padding: "10px 18px",
         },
       },
     },
@@ -100,6 +106,28 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: "none",
+          backgroundColor: "var(--mui-palette-background-default)",
+          color: "var(--mui-palette-text-primary)",
+          boxShadow: "none",
+          borderBottom: "1px solid var(--mui-palette-divider)",
+        },
+      },
+    },
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundImage:
+            "radial-gradient(ellipse at 85% 0, rgba(117,150,215,0.1), transparent 45rem)",
+        },
+        "*:focus-visible": {
+          outline: "2px solid var(--mui-palette-primary-main)",
+          outlineOffset: 3,
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animation: "none !important",
+            transition: "none !important",
+          },
         },
       },
     },

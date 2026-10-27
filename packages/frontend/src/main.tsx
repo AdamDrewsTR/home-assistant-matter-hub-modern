@@ -6,11 +6,6 @@ import { RouterProvider } from "react-router/dom";
 
 import "./i18n/index.ts";
 
-import "@fontsource/roboto/300.css";
-import "@fontsource/roboto/400.css";
-import "@fontsource/roboto/500.css";
-import "@fontsource/roboto/700.css";
-
 import CssBaseline from "@mui/material/CssBaseline";
 import GlobalStyles from "@mui/material/GlobalStyles";
 import { ThemeProvider } from "@mui/material/styles";
@@ -44,7 +39,7 @@ const router = createBrowserRouter(
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <StateProvider store={store}>
-      <ThemeProvider theme={appTheme}>
+      <ThemeProvider theme={appTheme} defaultMode="dark">
         <CssBaseline />
         <GlobalStyles
           styles={{

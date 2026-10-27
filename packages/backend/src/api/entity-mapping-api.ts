@@ -1,11 +1,20 @@
+import { isDeepStrictEqual } from "node:util";
 import type { EntityMappingRequest } from "@home-assistant-matter-hub/common";
+import { entityMappingReferences } from "@home-assistant-matter-hub/common";
 import express from "express";
 import type { EntityIdentityStorage } from "../services/storage/entity-identity-storage.js";
 import type { EntityMappingStorage } from "../services/storage/entity-mapping-storage.js";
 
 export function entityMappingApi(
-  mappingStorage: EntityMappingStorage,
-  identityStorage: EntityIdentityStorage,
+  mappingStorage: Pick<
+    EntityMappingStorage,
+    | "getMappingsForBridge"
+    | "getMapping"
+    | "setMapping"
+    | "deleteMapping"
+    | "deleteBridgeMappings"
+  >,
+  identityStorage: Pick<EntityIdentityStorage, "deleteBridgeIdentities">,
 ): express.Router {
   const router = express.Router();
 
@@ -28,6 +37,72 @@ export function entityMappingApi(
   router.put("/:bridgeId/:entityId", async (req, res) => {
     const { bridgeId, entityId } = req.params;
     const body = req.body as Partial<EntityMappingRequest>;
+    if (
+      "expectedMapping" in body &&
+      !isDeepStrictEqual(
+        JSON.parse(
+          JSON.stringify(mappingStorage.getMapping(bridgeId, entityId) ?? null),
+        ),
+        body.expectedMapping,
+      )
+    ) {
+      res.status(409).json({
+        error:
+          "This device mapping changed elsewhere. Reload and review before applying.",
+      });
+      return;
+    }
+    if (
+      (body.composeDevice !== undefined &&
+        typeof body.composeDevice !== "boolean") ||
+      (body.composeDevice &&
+        (!Array.isArray(body.composedEntities) ||
+          body.composedEntities.length === 0 ||
+          body.composedEntities.some(
+            (part) =>
+              !part ||
+              typeof part.entityId !== "string" ||
+              !part.entityId.trim() ||
+              part.entityId === entityId,
+          ) ||
+          new Set(body.composedEntities.map((part) => part.entityId)).size !==
+            body.composedEntities.length))
+    ) {
+      res.status(400).json({
+        error:
+          "Explicit composition requires distinct, non-empty sub-entities and a boolean composeDevice.",
+      });
+      return;
+    }
+    if (body.onlyIfUnmapped || "expectedMapping" in body) {
+      const previous = new Set(
+        !body.onlyIfUnmapped && body.expectedMapping
+          ? entityMappingReferences(body.expectedMapping)
+          : [],
+      );
+      const proposed = new Set(
+        entityMappingReferences({ ...body, entityId }).filter(
+          (id) => !previous.has(id),
+        ),
+      );
+      if (
+        mappingStorage
+          .getMappingsForBridge(bridgeId)
+          .some(
+            (mapping) =>
+              (body.onlyIfUnmapped ||
+                !("expectedMapping" in body) ||
+                mapping.entityId !== entityId) &&
+              entityMappingReferences(mapping).some((id) => proposed.has(id)),
+          )
+      ) {
+        res.status(409).json({
+          error:
+            "Bundle conflicts with an existing mapping. Reload and review before applying.",
+        });
+        return;
+      }
+    }
 
     const request: EntityMappingRequest = {
       bridgeId,
@@ -45,6 +120,8 @@ export function entityMappingApi(
       humidityEntity: body.humidityEntity,
       pressureEntity: body.pressureEntity,
       batteryEntity: body.batteryEntity,
+      faultEntity: body.faultEntity,
+      operationalStateEntity: body.operationalStateEntity,
       disableBatteryMapping: body.disableBatteryMapping,
       chargingStateEntity: body.chargingStateEntity,
       roomEntities: body.roomEntities,
@@ -92,6 +169,7 @@ export function entityMappingApi(
       climateExposeFan: body.climateExposeFan,
       climateAutoMode: body.climateAutoMode,
       composedEntities: body.composedEntities,
+      composeDevice: body.composeDevice,
       disableMomentaryFlip: body.disableMomentaryFlip,
     };
 

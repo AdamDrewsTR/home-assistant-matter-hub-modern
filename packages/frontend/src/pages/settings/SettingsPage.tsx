@@ -24,7 +24,11 @@ import { ConfirmDialog } from "../../components/misc/ConfirmDialog.tsx";
 import { UpdateChecker } from "../../components/system/UpdateChecker.tsx";
 import { RecoverySettingsCard } from "./RecoverySettingsCard.tsx";
 
-export const SettingsPage = () => {
+export const SettingsPage = ({
+  section,
+}: {
+  section?: "backup" | "updates" | "recovery" | "access";
+}) => {
   const { t } = useTranslation();
   const [authState, setAuthState] = useState<SettingsAuthResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,8 +58,8 @@ export const SettingsPage = () => {
   }, [t]);
 
   useEffect(() => {
-    loadAuthSettings();
-  }, [loadAuthSettings]);
+    if (!section || section === "access") loadAuthSettings();
+  }, [loadAuthSettings, section]);
 
   const handleSave = async () => {
     if (!username.trim() || !password.trim()) {
@@ -106,138 +110,141 @@ export const SettingsPage = () => {
   const isEnvConfigured = authState?.source === "environment";
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
-        <SettingsIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-        {t("settings.title")}
-      </Typography>
-
-      <BackupRestore />
-
-      <Divider sx={{ my: 3 }} />
-
-      <UpdateChecker />
-
-      <Divider sx={{ my: 3 }} />
-
-      <RecoverySettingsCard />
-
-      <Divider sx={{ my: 3 }} />
-
-      {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              <SecurityIcon
-                sx={{ mr: 1, verticalAlign: "middle", fontSize: 20 }}
-              />
-              {t("settings.title")}
-            </Typography>
-
-            {isEnvConfigured && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Authentication is configured via environment variables (
-                <code>HAMH_HTTP_AUTH_USERNAME</code> /{" "}
-                <code>HAMH_HTTP_AUTH_PASSWORD</code>). Remove the environment
-                variables to manage authentication from here.
-              </Alert>
-            )}
-
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
-
-            {success && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                {success}
-              </Alert>
-            )}
-
-            {authState?.enabled && !isEnvConfigured && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Authentication is currently enabled for user &quot;
-                {authState.username}&quot;. Enter a new password to change it,
-                or remove authentication entirely.
-              </Alert>
-            )}
-
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                maxWidth: 400,
-              }}
-            >
-              <TextField
-                label={t("settings.username")}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isEnvConfigured || saving}
-                fullWidth
-                size="small"
-              />
-              <TextField
-                label={t("settings.password")}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isEnvConfigured || saving}
-                fullWidth
-                size="small"
-                placeholder={
-                  authState?.enabled && !isEnvConfigured
-                    ? t("settings.enterNewPassword")
-                    : ""
-                }
-              />
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={
-                    isEnvConfigured ||
-                    saving ||
-                    !username.trim() ||
-                    !password.trim()
-                  }
-                  startIcon={
-                    saving ? <CircularProgress size={16} /> : <SaveIcon />
-                  }
-                >
-                  {authState?.enabled && !isEnvConfigured
-                    ? t("common.update")
-                    : t("settings.enableAuth")}
-                </Button>
-                {authState?.enabled && !isEnvConfigured && (
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    onClick={() => setConfirmDisableAuth(true)}
-                    disabled={saving}
-                    startIcon={<DeleteIcon />}
-                  >
-                    {t("common.disabled")}
-                  </Button>
-                )}
-              </Box>
-            </Box>
-
-            <Alert severity="warning" sx={{ mt: 3 }}>
-              If you get locked out, delete the settings from the storage
-              directory or set <code>HAMH_HTTP_AUTH_USERNAME</code> /{" "}
-              <code>HAMH_HTTP_AUTH_PASSWORD</code> environment variables in your
-              Docker Compose file to regain access.
-            </Alert>
-          </CardContent>
-        </Card>
+    <Box>
+      {!section && (
+        <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
+          <SettingsIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+          {t("settings.title")}
+        </Typography>
       )}
+
+      {(!section || section === "backup") && <BackupRestore />}
+
+      {!section && <Divider sx={{ my: 3 }} />}
+
+      {(!section || section === "updates") && <UpdateChecker />}
+
+      {!section && <Divider sx={{ my: 3 }} />}
+
+      {(!section || section === "recovery") && <RecoverySettingsCard />}
+
+      {!section && <Divider sx={{ my: 3 }} />}
+
+      {(!section || section === "access") &&
+        (loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                <SecurityIcon
+                  sx={{ mr: 1, verticalAlign: "middle", fontSize: 20 }}
+                />
+                {t("settings.title")}
+              </Typography>
+
+              {isEnvConfigured && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Authentication is configured via environment variables (
+                  <code>HAMH_HTTP_AUTH_USERNAME</code> /{" "}
+                  <code>HAMH_HTTP_AUTH_PASSWORD</code>). Remove the environment
+                  variables to manage authentication from here.
+                </Alert>
+              )}
+
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
+
+              {success && (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  {success}
+                </Alert>
+              )}
+
+              {authState?.enabled && !isEnvConfigured && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Authentication is currently enabled for user &quot;
+                  {authState.username}&quot;. Enter a new password to change it,
+                  or remove authentication entirely.
+                </Alert>
+              )}
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  maxWidth: 400,
+                }}
+              >
+                <TextField
+                  label={t("settings.username")}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isEnvConfigured || saving}
+                  fullWidth
+                  size="small"
+                />
+                <TextField
+                  label={t("settings.password")}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isEnvConfigured || saving}
+                  fullWidth
+                  size="small"
+                  placeholder={
+                    authState?.enabled && !isEnvConfigured
+                      ? t("settings.enterNewPassword")
+                      : ""
+                  }
+                />
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={handleSave}
+                    disabled={
+                      isEnvConfigured ||
+                      saving ||
+                      !username.trim() ||
+                      !password.trim()
+                    }
+                    startIcon={
+                      saving ? <CircularProgress size={16} /> : <SaveIcon />
+                    }
+                  >
+                    {authState?.enabled && !isEnvConfigured
+                      ? t("common.update")
+                      : t("settings.enableAuth")}
+                  </Button>
+                  {authState?.enabled && !isEnvConfigured && (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => setConfirmDisableAuth(true)}
+                      disabled={saving}
+                      startIcon={<DeleteIcon />}
+                    >
+                      {t("common.disabled")}
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+
+              <Alert severity="warning" sx={{ mt: 3 }}>
+                If you get locked out, delete the settings from the storage
+                directory or set <code>HAMH_HTTP_AUTH_USERNAME</code> /{" "}
+                <code>HAMH_HTTP_AUTH_PASSWORD</code> environment variables in
+                your Docker Compose file to regain access.
+              </Alert>
+            </CardContent>
+          </Card>
+        ))}
       <ConfirmDialog
         open={confirmDisableAuth}
         title={t("settings.disableAuth")}

@@ -281,7 +281,11 @@ function buildGraph(
   return { nodes, edges };
 }
 
-export const NetworkMapPage = () => {
+export const NetworkMapPage = ({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { content: bridges, isLoading: bridgesLoading } = useBridges();
@@ -438,7 +442,7 @@ export const NetworkMapPage = () => {
   const isLoading = bridgesLoading || !devicesLoaded;
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: embedded ? 0 : 2 }}>
       <Box
         sx={{
           display: "flex",
@@ -447,13 +451,15 @@ export const NetworkMapPage = () => {
           mb: 2,
         }}
       >
-        <Typography
-          variant="h4"
-          sx={{ display: "flex", alignItems: "center", gap: 2 }}
-        >
-          <AccountTreeIcon />
-          {t("networkMap.title")}
-        </Typography>
+        {!embedded && (
+          <Typography
+            variant="h4"
+            sx={{ display: "flex", alignItems: "center", gap: 2 }}
+          >
+            <AccountTreeIcon />
+            {t("networkMap.title")}
+          </Typography>
+        )}
         <Box sx={{ display: "flex", gap: 0.5 }}>
           <Tooltip title={t("networkMap.undoMove")}>
             <span>

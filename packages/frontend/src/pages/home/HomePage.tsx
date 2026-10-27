@@ -1,0 +1,482 @@
+import type { BridgeDataWithMetadata } from "@home-assistant-matter-hub/common";
+import Add from "@mui/icons-material/Add";
+import ArrowForward from "@mui/icons-material/ArrowForward";
+import HomeOutlined from "@mui/icons-material/HomeOutlined";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CircularProgress from "@mui/material/CircularProgress";
+import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Link,
+  useBeforeUnload,
+  useBlocker,
+  useSearchParams,
+} from "react-router";
+import { fetchBridges } from "../../api/bridges.ts";
+import {
+  FabricsCard,
+  PairingCard,
+} from "../../components/bridge/BridgeDetails.tsx";
+import { FilterPreview } from "../../components/bridge/FilterPreview.tsx";
+import { ConfirmDialog } from "../../components/misc/ConfirmDialog.tsx";
+import { useBridges, useUpdateBridge } from "../../hooks/data/bridges.ts";
+import { navigation } from "../../routes.tsx";
+import { loadBridges } from "../../state/bridges/bridge-actions.ts";
+import { useAppDispatch } from "../../state/hooks.ts";
+import { bridgeToConfig } from "../edit-bridge/bridge-to-config.ts";
+import { ChangePlanDialog } from "./ChangePlan.tsx";
+import { EntityPicker } from "./EntityPicker.tsx";
+import { PairingChecklist } from "./PairingChecklist.tsx";
+import { selectedEntities, selectionFilter } from "./sharing.ts";
+
+const BundlePanel = lazy(() =>
+  import("./BundlePanel.tsx").then((module) => ({
+    default: module.BundlePanel,
+  })),
+);
+const DeviceHealth = lazy(() =>
+  import("./DeviceHealth.tsx").then((module) => ({
+    default: module.DeviceHealth,
+  })),
+);
+const HubAdvanced = lazy(() =>
+  import("./HubAdvanced.tsx").then((module) => ({
+    default: module.HubAdvanced,
+  })),
+);
+
+function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
+  const { t } = useTranslation();
+  const updateBridge = useUpdateBridge();
+  const [baseline, setBaseline] = useState(bridge.filter);
+  const original = selectedEntities(baseline);
+  const [selection, setSelection] = useState<string[]>(original ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+  const [saved, setSaved] = useState(false);
+  const [review, setReview] = useState(false);
+  const [deviceOpen, setDeviceOpen] = useState(false);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const dirty =
+    JSON.stringify([...selection].sort()) !==
+    JSON.stringify([...(original ?? [])].sort());
+
+  const remoteChanged =
+    JSON.stringify(bridge.filter) !== JSON.stringify(baseline);
+  const blocker = useBlocker(dirty || saving || deviceOpen);
+  useEffect(() => {
+    if (blocker.state === "blocked" && !saving && !dirty && !deviceOpen)
+      blocker.proceed();
+  }, [blocker, saving, dirty, deviceOpen]);
+  useBeforeUnload((event) => {
+    if (dirty || saving) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+
+  async function save() {
+    setSaving(true);
+    setError(undefined);
+    try {
+      const current = (await fetchBridges()).find(
+        (item) => item.id === bridge.id,
+      );
+      if (
+        !current ||
+        JSON.stringify(current.filter) !== JSON.stringify(baseline) ||
+        current.featureFlags?.serverMode
+      )
+        throw new Error(t("modern.remoteChanged"));
+      const updated = await updateBridge({
+        ...bridgeToConfig(current),
+        id: bridge.id,
+        filter: selectionFilter(selection),
+      });
+      setBaseline(updated.filter);
+      setSelection(selectedEntities(updated.filter) ?? []);
+      setSaved(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t("modern.saveFailed"));
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (original === null || bridge.featureFlags?.serverMode)
+    return (
+      <Stack spacing={2}>
+        <Alert severity="info">{t("modern.ruleBased")}</Alert>
+        <Button
+          component={Link}
+          to={navigation.editBridge(bridge.id)}
+          startIcon={<SettingsOutlined />}
+          sx={{ alignSelf: "flex-start" }}
+        >
+          {t("modern.editRules")}
+        </Button>
+        <FilterPreview filter={bridge.filter} />
+      </Stack>
+    );
+
+  return (
+    <Stack spacing={3}>
+      {review && (
+        <ChangePlanDialog
+          open
+          before={original}
+          after={selection}
+          onClose={() => setReview(false)}
+          onApply={save}
+          onBusyChange={setSaving}
+        />
+      )}
+      <ConfirmDialog
+        open={blocker.state === "blocked" && !saving && !deviceBusy}
+        title={t("modern.discardTitle")}
+        message={t("modern.discardMessage")}
+        confirmLabel={t("modern.discard")}
+        cancelLabel={t("modern.stay")}
+        onConfirm={() => {
+          if (blocker.state === "blocked") blocker.proceed();
+        }}
+        onCancel={() => {
+          if (blocker.state === "blocked") blocker.reset();
+        }}
+      />
+      {error && <Alert severity="error">{error}</Alert>}
+      {remoteChanged && (
+        <Alert
+          severity="warning"
+          action={
+            <Button
+              onClick={() => {
+                setBaseline(bridge.filter);
+                setSelection(selectedEntities(bridge.filter) ?? []);
+                setSaved(false);
+              }}
+            >
+              {t("modern.reloadSelection")}
+            </Button>
+          }
+        >
+          {t("modern.remoteChanged")}
+        </Alert>
+      )}
+      {saved && !dirty && <Alert severity="success">{t("modern.saved")}</Alert>}
+      <EntityPicker
+        bridge={bridge}
+        onEditorOpenChange={setDeviceOpen}
+        onEditorBusyChange={setDeviceBusy}
+        selected={selection}
+        onChange={(value) => {
+          setSelection(value);
+          setSaved(false);
+        }}
+        disabled={saving}
+      />
+      {dirty && (
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          alignItems={{ sm: "center" }}
+          sx={{
+            position: "sticky",
+            bottom: 16,
+            zIndex: 2,
+            p: 2.5,
+            bgcolor: "background.paper",
+            border: "1px solid",
+            borderColor: "primary.main",
+            borderRadius: 3,
+            boxShadow: 8,
+          }}
+        >
+          <Box sx={{ flex: 1 }}>
+            <Typography fontWeight={600}>
+              {t("modern.selectedCount", { count: selection.length })}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {t(
+                selection.length
+                  ? "modern.pendingChanges"
+                  : "modern.removeAllWarning",
+              )}
+            </Typography>
+          </Box>
+          <Button disabled={saving} onClick={() => setSelection(original)}>
+            {t("modern.discard")}
+          </Button>
+          <Button
+            variant="contained"
+            disabled={saving || remoteChanged}
+            onClick={() => setReview(true)}
+          >
+            {t(saving ? "modern.saving" : "modern.applyChanges")}
+          </Button>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+export function HomePage() {
+  const { t } = useTranslation();
+  const dispatch = useAppDispatch();
+  const { content: bridges, isLoading, error } = useBridges();
+  const [params, setParams] = useSearchParams();
+  const bridge = params.has("hub")
+    ? bridges?.find((item) => item.id === params.get("hub"))
+    : bridges?.[0];
+  const requestedView = params.get("view") ?? "devices";
+  const view = ["pair", "bundles", "advanced", "health"].includes(requestedView)
+    ? requestedView
+    : "devices";
+
+  useEffect(() => {
+    const timer = setInterval(() => dispatch(loadBridges()), 15000);
+    return () => clearInterval(timer);
+  }, [dispatch]);
+
+  return (
+    <Stack spacing={4}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        spacing={2}
+      >
+        <Box>
+          <Typography variant="overline" color="primary">
+            {t("modern.eyebrow")}
+          </Typography>
+          <Typography variant="h1" sx={{ mt: 1 }}>
+            {t("modern.homeTitle")}
+          </Typography>
+          <Typography color="text.secondary" sx={{ mt: 1.5 }}>
+            {t("modern.homeDescription")}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          {bridges && bridges.length > 0 && (
+            <TextField
+              select
+              label={t("modern.currentHub")}
+              value={bridge?.id ?? ""}
+              sx={{ minWidth: 180 }}
+              onChange={(event) =>
+                setParams({
+                  hub: event.target.value,
+                  view,
+                  ...(params.get("section") && {
+                    section: params.get("section")!,
+                  }),
+                })
+              }
+            >
+              {bridges.map((item) => (
+                <MenuItem key={item.id} value={item.id}>
+                  {item.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+          <Button
+            component={Link}
+            to="/setup"
+            variant={bridge ? "outlined" : "contained"}
+            startIcon={<Add />}
+          >
+            {t("modern.addHub")}
+          </Button>
+        </Stack>
+      </Stack>
+      {error && (
+        <Alert
+          severity="error"
+          action={
+            <Button onClick={() => dispatch(loadBridges())}>
+              {t("modern.retry")}
+            </Button>
+          }
+        >
+          {error.message || t("modern.loadFailed")}
+        </Alert>
+      )}
+      {!bridges && isLoading && (
+        <CircularProgress aria-label={t("common.loading")} />
+      )}
+      {bridges?.length && !bridge ? (
+        <Alert
+          severity="warning"
+          action={
+            <Button component={Link} to="/">
+              {t("modern.backHome")}
+            </Button>
+          }
+        >
+          {t("common.notFound")}
+        </Alert>
+      ) : null}
+      {bridges && !bridges.length && (
+        <Card
+          variant="outlined"
+          sx={{ p: { xs: 4, md: 8 }, textAlign: "center" }}
+        >
+          <HomeOutlined color="primary" sx={{ fontSize: 64, mb: 2 }} />
+          <Typography variant="h2">{t("modern.welcomeTitle")}</Typography>
+          <Typography
+            color="text.secondary"
+            sx={{ my: 3, maxWidth: 550, mx: "auto" }}
+          >
+            {t("modern.welcomeDescription")}
+          </Typography>
+          <Button
+            component={Link}
+            to="/setup"
+            variant="contained"
+            endIcon={<ArrowForward />}
+          >
+            {t("modern.getStarted")}
+          </Button>
+        </Card>
+      )}
+      {bridge && (
+        <>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+              gap: 2,
+            }}
+          >
+            {[
+              [t("modern.sharedDevices"), bridge.deviceCount],
+              [t("modern.hubStatus"), t(`common.${bridge.status}`)],
+              [
+                t("modern.connectedApps"),
+                bridge.commissioning?.fabrics.length ?? 0,
+              ],
+            ].map(([label, value]) => (
+              <Card key={label} variant="outlined" sx={{ p: 3 }}>
+                <Typography variant="h3" color="primary">
+                  {value}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
+                  {label}
+                </Typography>
+              </Card>
+            ))}
+          </Box>
+          {bridge.statusReason && (
+            <Alert severity={bridge.status === "failed" ? "error" : "info"}>
+              {bridge.statusReason}
+            </Alert>
+          )}
+          {!!bridge.failedEntities?.length && (
+            <Alert
+              severity="warning"
+              action={
+                <Button
+                  component={Link}
+                  to={navigation.hub(bridge.id, "advanced", "diagnostics")}
+                >
+                  {t("modern.details")}
+                </Button>
+              }
+            >
+              {t("modern.failedCount", { count: bridge.failedEntities.length })}
+            </Alert>
+          )}
+          {!bridge.commissioning?.isCommissioned && (
+            <Alert
+              severity="info"
+              action={
+                <Button
+                  onClick={() => setParams({ hub: bridge.id, view: "pair" })}
+                >
+                  {t("modern.pairHub")}
+                </Button>
+              }
+            >
+              {t("modern.notPaired")}
+            </Alert>
+          )}
+          <Box>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+              sx={{ mb: 3, borderBottom: "1px solid", borderColor: "divider" }}
+            >
+              <Tabs
+                value={view}
+                variant="scrollable"
+                scrollButtons="auto"
+                onChange={(_, value: string) =>
+                  setParams({ hub: bridge.id, view: value })
+                }
+                aria-label={t("modern.hubViews")}
+                sx={{
+                  minWidth: 0,
+                  "& .MuiTab-root": {
+                    minWidth: 0,
+                    px: { xs: 1, sm: 2 },
+                    fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                  },
+                }}
+              >
+                <Tab value="devices" label={t("modern.yourDevices")} />
+                <Tab value="pair" label={t("modern.pairing")} />
+                <Tab value="bundles" label={t("bundles.title")} />
+                <Tab value="health" label={t("deviceWorkspace.health.title")} />
+                <Tab value="advanced" label={t("modern.advanced")} />
+              </Tabs>
+            </Stack>
+            {view === "devices" ? (
+              <HubSharing key={bridge.id} bridge={bridge} />
+            ) : view === "bundles" ? (
+              <Suspense fallback={<CircularProgress />}>
+                <BundlePanel key={bridge.id} bridge={bridge} />
+              </Suspense>
+            ) : view === "health" ? (
+              <Suspense fallback={<CircularProgress />}>
+                <DeviceHealth key={bridge.id} bridge={bridge} />
+              </Suspense>
+            ) : view === "advanced" ? (
+              <Suspense fallback={<CircularProgress />}>
+                <HubAdvanced key={bridge.id} bridge={bridge} />
+              </Suspense>
+            ) : (
+              <Stack spacing={3}>
+                <PairingChecklist key={bridge.id} bridge={bridge} />
+                <Typography color="text.secondary">
+                  {t("modern.pairDescription")}
+                </Typography>
+                <Box sx={{ maxWidth: 520 }}>
+                  <PairingCard key={bridge.id} bridge={bridge} />
+                </Box>
+                <FabricsCard bridge={bridge} />
+              </Stack>
+            )}
+          </Box>
+        </>
+      )}
+    </Stack>
+  );
+}

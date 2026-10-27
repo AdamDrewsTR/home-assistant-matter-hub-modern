@@ -1,5 +1,6 @@
 import type {
   ClimateAutoMode,
+  ComposedSubEntity,
   CustomServiceArea,
   EntityMappingConfig,
   FanWindPresets,
@@ -59,6 +60,8 @@ export interface MappingProfileEntry {
   readonly disableMomentaryFlip?: boolean;
   readonly vacuumAscendingRoomOrder?: boolean;
   readonly vacuumRoomSwitches?: boolean;
+  readonly composedEntities?: ComposedSubEntity[];
+  readonly composeDevice?: boolean;
 }
 
 export interface MappingProfile {

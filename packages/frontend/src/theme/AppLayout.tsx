@@ -6,7 +6,6 @@ import Toolbar from "@mui/material/Toolbar";
 import type { FC } from "react";
 import { Outlet } from "react-router";
 import { ErrorBoundary } from "../components/misc/ErrorBoundary.tsx";
-import { FloatingLanguageSwitcher } from "../components/misc/FloatingLanguageSwitcher.tsx";
 import { useWebSocketStatus } from "../contexts/WebSocketContext.tsx";
 import { useAppInfo } from "../hooks/app-info.ts";
 import { AppFooter } from "./AppFooter.tsx";
@@ -44,13 +43,12 @@ export const AppLayout: FC = () => {
           Connection lost, data may be outdated. Reconnecting…
         </Alert>
       )}
-      <Container sx={{ p: 2 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 2, sm: 4, lg: 6 }, pt: 6 }}>
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
       </Container>
       <AppFooter />
-      <FloatingLanguageSwitcher />
     </Box>
   );
 };

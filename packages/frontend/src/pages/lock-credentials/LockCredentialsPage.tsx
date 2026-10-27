@@ -151,7 +151,11 @@ const CredentialDialog = ({
   );
 };
 
-export const LockCredentialsPage = () => {
+export const LockCredentialsPage = ({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) => {
   const { t } = useTranslation();
   const [credentials, setCredentials] = useState<SanitizedCredential[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,7 +238,7 @@ export const LockCredentialsPage = () => {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: embedded ? 0 : 2 }}>
       <Box
         sx={{
           display: "flex",
@@ -243,10 +247,12 @@ export const LockCredentialsPage = () => {
           mb: 3,
         }}
       >
-        <Typography variant="h5" component="h1">
-          <LockIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-          {t("lockCredentials.title")}
-        </Typography>
+        {!embedded && (
+          <Typography variant="h5" component="h1">
+            <LockIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+            {t("lockCredentials.title")}
+          </Typography>
+        )}
         <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
           {t("lockCredentials.addCredential")}
         </Button>

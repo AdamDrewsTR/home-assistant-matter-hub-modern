@@ -5,6 +5,7 @@ import {
   matterDeviceTypeControllerSupport,
 } from "@home-assistant-matter-hub/common";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 
 const controllers: {
   key: ControllerKey;
@@ -33,13 +34,35 @@ const wordFor: Record<ControllerSupport, string> = {
 };
 
 // One dot per controller: green works, amber partly, grey not/unverified.
-export function ControllerSupportChips({ type }: { type: MatterDeviceType }) {
+export function ControllerSupportChips({
+  type,
+  detailed = false,
+}: {
+  type: MatterDeviceType;
+  detailed?: boolean;
+}) {
   const support = matterDeviceTypeControllerSupport[type];
   if (!support) return null;
   return (
-    <Box sx={{ display: "inline-flex", gap: 0.5, ml: 1 }}>
+    <Box
+      sx={{
+        display: "inline-flex",
+        flexWrap: "wrap",
+        gap: 0.5,
+        ml: detailed ? 0 : 1,
+      }}
+    >
       {controllers.map((c) => {
         const value = support[c.key];
+        if (detailed)
+          return (
+            <Chip
+              key={c.key}
+              size="small"
+              variant="outlined"
+              label={`${c.label}: ${wordFor[value]}`}
+            />
+          );
         return (
           <Box
             key={c.key}

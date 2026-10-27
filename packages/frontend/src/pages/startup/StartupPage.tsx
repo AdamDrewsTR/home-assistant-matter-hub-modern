@@ -153,7 +153,7 @@ const SortableBridgeCard = ({ bridge, index }: SortableBridgeCardProps) => {
   );
 };
 
-export const StartupPage = () => {
+export const StartupPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { t } = useTranslation();
   const notifications = useNotifications();
   const { content: bridges, isLoading } = useBridges();
@@ -230,24 +230,28 @@ export const StartupPage = () => {
 
   return (
     <Stack spacing={3}>
-      <Breadcrumbs
-        items={[
-          { name: t("nav.bridges"), to: navigation.bridges },
-          { name: t("startup.title"), to: navigation.startup },
-        ]}
-      />
+      {!embedded && (
+        <Breadcrumbs
+          items={[
+            { name: t("nav.bridges"), to: navigation.bridges },
+            { name: t("startup.title"), to: navigation.startup },
+          ]}
+        />
+      )}
 
-      <Box display="flex" alignItems="center" gap={2}>
-        <RocketLaunch color="primary" fontSize="large" />
-        <Box>
-          <Typography variant="h5" fontWeight={600}>
-            {t("startup.title")}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {t("startup.description")}
-          </Typography>
+      {!embedded && (
+        <Box display="flex" alignItems="center" gap={2}>
+          <RocketLaunch color="primary" fontSize="large" />
+          <Box>
+            <Typography variant="h5" fontWeight={600}>
+              {t("startup.title")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t("startup.description")}
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {hasChanges && (
         <Alert

@@ -53,7 +53,11 @@ function loadCustomLanguages(): LanguageOption[] {
 const TRANSLATIONS_ISSUE_URL =
   "https://github.com/RiDDiX/home-assistant-matter-hub/issues/new?labels=translation&title=Translation+improvement";
 
-export function FloatingLanguageSwitcher() {
+export function FloatingLanguageSwitcher({
+  inline = false,
+}: {
+  inline?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -94,7 +98,7 @@ export function FloatingLanguageSwitcher() {
           onClick={handleToggle}
           aria-label="Change language"
           sx={{
-            position: "fixed",
+            position: inline ? "static" : "fixed",
             bottom: 24,
             right: 24,
             zIndex: 1300,

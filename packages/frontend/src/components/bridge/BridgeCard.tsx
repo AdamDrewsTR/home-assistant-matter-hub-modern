@@ -36,10 +36,10 @@ export const BridgeCard = ({ bridge }: BridgeCardProps) => {
   const bridgeColor = getBridgeIconColor(bridge);
 
   return (
-    <Card variant="elevation" sx={{ height: "100%" }}>
+    <Card variant="outlined" sx={{ height: "100%" }}>
       <CardActionArea
         component={RouterLink}
-        to={navigation.bridge(bridge.id)}
+        to={navigation.hub(bridge.id)}
         sx={{ height: "100%" }}
       >
         <CardContent>
@@ -81,7 +81,7 @@ export const BridgeCard = ({ bridge }: BridgeCardProps) => {
                 />
                 <Chip
                   icon={<DeviceHub fontSize="small" />}
-                  label={`${fabricCount} ${t("common.fabrics")}`}
+                  label={t("modern.pairedCount", { count: fabricCount })}
                   size="small"
                   variant="outlined"
                   color={fabricCount > 0 ? "success" : "default"}

@@ -163,6 +163,9 @@ export class EntityMappingStorage extends Service {
       temperatureEntity: request.temperatureEntity?.trim() || undefined,
       humidityEntity: request.humidityEntity?.trim() || undefined,
       batteryEntity: request.batteryEntity?.trim() || undefined,
+      faultEntity: request.faultEntity?.trim() || undefined,
+      operationalStateEntity:
+        request.operationalStateEntity?.trim() || undefined,
       disableBatteryMapping: request.disableBatteryMapping || undefined,
       chargingStateEntity: request.chargingStateEntity?.trim() || undefined,
       roomEntities: roomEntities.length > 0 ? roomEntities : undefined,
@@ -227,6 +230,7 @@ export class EntityMappingStorage extends Service {
       composedEntities:
         request.composedEntities?.filter((e) => e.entityId?.trim()) ??
         undefined,
+      composeDevice: request.composeDevice || undefined,
       disableMomentaryFlip: request.disableMomentaryFlip || undefined,
     };
 
@@ -243,6 +247,8 @@ export class EntityMappingStorage extends Service {
       !config.temperatureEntity &&
       !config.humidityEntity &&
       !config.batteryEntity &&
+      !config.faultEntity &&
+      !config.operationalStateEntity &&
       !config.disableBatteryMapping &&
       !config.chargingStateEntity &&
       !config.roomEntities &&
@@ -294,7 +300,8 @@ export class EntityMappingStorage extends Service {
       !config.climateExposeFan &&
       !config.climateAutoMode &&
       (!config.composedEntities || config.composedEntities.length === 0) &&
-      !config.disableMomentaryFlip
+      !config.disableMomentaryFlip &&
+      !config.composeDevice
     ) {
       bridgeMap.delete(request.entityId);
     } else {

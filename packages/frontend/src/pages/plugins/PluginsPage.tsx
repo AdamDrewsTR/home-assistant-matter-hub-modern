@@ -164,7 +164,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export const PluginsPage = () => {
+export const PluginsPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { content: bridges } = useBridges();
   const [bridgePlugins, setBridgePlugins] = useState<BridgePlugins[]>([]);
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
@@ -423,7 +423,14 @@ export const PluginsPage = () => {
     bridges?.filter((b) => b.featureFlags?.serverMode) ?? [];
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, p: 2 }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        p: embedded ? 0 : 2,
+      }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -431,12 +438,14 @@ export const PluginsPage = () => {
           alignItems: "center",
         }}
       >
-        <Typography
-          variant="h5"
-          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-        >
-          <ExtensionIcon /> Plugins
-        </Typography>
+        {!embedded && (
+          <Typography
+            variant="h5"
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <ExtensionIcon /> Plugins
+          </Typography>
+        )}
         <Stack direction="row" spacing={1}>
           <Tooltip title="Refresh">
             <IconButton onClick={refresh}>

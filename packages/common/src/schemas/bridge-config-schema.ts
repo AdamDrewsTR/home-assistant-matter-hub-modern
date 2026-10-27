@@ -227,7 +227,8 @@ const featureFlagSchema: JSONSchema7 = {
       description:
         "A temperature sensor with its humidity and pressure sensors becomes one device with a sub-device per reading, " +
         "battery on the parent. Off, they share one endpoint and Apple Home shows no humidity. Also forces battery, " +
-        "humidity and pressure auto-mapping on and unlocks Composed Sub-Entities and air purifier grouping. " +
+        "humidity and pressure auto-mapping on and enables Composed Sub-Entities and air purifier grouping hub-wide. " +
+        "Workspace bundles opt in per device without this flag. " +
         "Controllers see new devices; existing ones change shape after a bridge restart.",
       type: "boolean",
       default: false,
@@ -416,8 +417,8 @@ const featureFlagSchema: JSONSchema7 = {
     composedPrimaryOnParent: {
       title: "Composed Devices: Primary Entity On The Parent Endpoint",
       description:
-        "For devices you group yourself with Composed Sub-Entities, needs " +
-        "autoComposedDevices on as well. Puts the primary entity on the parent " +
+        "For devices you group yourself with Composed Sub-Entities, enabled " +
+        "by autoComposedDevices or a per-device workspace bundle. Puts the primary entity on the parent " +
         "endpoint instead of on an extra sub-endpoint, so the device advertises " +
         "its own type (light, switch, ...) the way an uncomposed device does. " +
         "Automatically composed sensors, air purifiers and climate/fan devices " +

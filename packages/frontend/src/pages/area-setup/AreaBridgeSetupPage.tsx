@@ -61,7 +61,11 @@ const domainIcons: Record<string, string> = {
   humidifier: "\uD83D\uDCA7",
 };
 
-export const AreaBridgeSetupPage = () => {
+export const AreaBridgeSetupPage = ({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const notifications = useNotifications();
@@ -211,14 +215,18 @@ export const AreaBridgeSetupPage = () => {
 
   return (
     <Stack spacing={3}>
-      <Breadcrumbs
-        items={[
-          { name: t("nav.bridges"), to: navigation.bridges },
-          { name: t("areaSetup.title"), to: navigation.areaSetup },
-        ]}
-      />
+      {!embedded && (
+        <Breadcrumbs
+          items={[
+            { name: t("nav.bridges"), to: navigation.bridges },
+            { name: t("areaSetup.title"), to: navigation.areaSetup },
+          ]}
+        />
+      )}
 
-      <Typography variant="h5">{t("areaSetup.heading")}</Typography>
+      {!embedded && (
+        <Typography variant="h5">{t("areaSetup.heading")}</Typography>
+      )}
       <Typography variant="body2" color="text.secondary">
         {t("areaSetup.description")}
       </Typography>

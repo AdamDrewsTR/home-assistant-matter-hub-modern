@@ -72,4 +72,27 @@ describe("PreflightPanel", () => {
       screen.queryByText(/Alexa only pairs on port/i),
     ).not.toBeInTheDocument();
   });
+  it("does not claim readiness without checks and clears stale results after a failed refresh", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ...payload, checks: [] }),
+      })
+      .mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetch);
+    renderInTheme(<PreflightPanel port={5541} alexa={false} />);
+    expect(await screen.findByText(/No usable checks/)).toBeInTheDocument();
+    expect(screen.queryByText(/Alexa only pairs/)).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Refresh checks" }),
+    );
+    expect(
+      await screen.findByText(/Could not reach the server/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No usable checks/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh checks" }),
+    ).toBeEnabled();
+  });
 });

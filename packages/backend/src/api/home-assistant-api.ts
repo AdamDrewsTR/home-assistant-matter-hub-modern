@@ -8,6 +8,10 @@ export interface HomeAssistantEntityInfo {
   domain: string;
   device_id?: string;
   device_name?: string;
+  area_id?: string;
+  disabled?: boolean;
+  hidden?: boolean;
+  entity_category?: string;
   state: string;
   attributes: Record<string, unknown>;
   last_changed?: string;
@@ -40,8 +44,13 @@ export interface HomeAssistantStats {
 }
 
 export function homeAssistantApi(
-  haRegistry: HomeAssistantRegistry,
-  haClient: HomeAssistantClient,
+  haRegistry: Pick<
+    HomeAssistantRegistry,
+    "entities" | "devices" | "states" | "reload"
+  >,
+  haClient: {
+    readonly connection?: Pick<HomeAssistantClient["connection"], "connected">;
+  },
 ): express.Router {
   const router = express.Router();
 
@@ -115,7 +124,16 @@ export function homeAssistantApi(
         friendly_name: state?.attributes?.friendly_name as string | undefined,
         domain: entity.entity_id.split(".")[0],
         device_id: entity.device_id,
-        device_name: device?.name,
+        device_name: device?.name_by_user ?? device?.name,
+        area_id:
+          entity.area_id ??
+          (typeof device?.area_id === "string" ? device.area_id : undefined),
+        disabled: !!entity.disabled_by,
+        hidden: !!entity.hidden_by,
+        entity_category:
+          typeof entity.entity_category === "string"
+            ? entity.entity_category
+            : undefined,
         state: state?.state ?? "unknown",
         attributes: state?.attributes ?? {},
         last_changed: state?.last_changed,

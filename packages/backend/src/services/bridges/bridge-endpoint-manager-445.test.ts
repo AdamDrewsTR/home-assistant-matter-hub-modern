@@ -208,18 +208,19 @@ async function buildManager(
   // biome-ignore lint/suspicious/noExplicitAny: minimal registry stub
   const registry = new BridgeRegistry(ha as any, provider);
   const client = { connection: {}, haRunning: true, runningSince: 0 };
+  const mappingStorage = new FakeMappingStorage();
   const manager = new BridgeEndpointManager(
     // biome-ignore lint/suspicious/noExplicitAny: client only used for observing
     client as any,
     registry,
-    new FakeMappingStorage() as unknown as EntityMappingStorage,
+    mappingStorage as unknown as EntityMappingStorage,
     new FakeIdentityStorage() as unknown as EntityIdentityStorage,
     provider.id,
     fakeLogger(),
   );
   managers.push(manager);
   await server.add(manager.root);
-  return { manager, registry, ha, client };
+  return { manager, registry, ha, client, mappingStorage };
 }
 
 // The exact shape onDeviceRegistered mounts: a bare Endpoint, no entityId,
@@ -258,6 +259,71 @@ afterEach(async () => {
 });
 
 describe("plugin endpoints in entity flows (#445)", () => {
+  it("composes only the opted-in device, absorbs its child, and restores child identity when unbundled", async () => {
+    const ha = makeHa();
+    for (const [id, deviceClass, unit] of [
+      ["sensor.temperature", "temperature", "°C"],
+      ["sensor.humidity", "humidity", "%"],
+      ["sensor.other_temperature", "temperature", "°C"],
+      ["sensor.other_humidity", "humidity", "%"],
+    ]) {
+      const device_id = id.includes("other") ? "other" : "monitor";
+      ha.devices[device_id] = { id: device_id };
+      ha.entities[id] = { entity_id: id, device_id };
+      ha.states[id] = {
+        entity_id: id,
+        state: "21",
+        attributes: {
+          device_class: deviceClass,
+          unit_of_measurement: unit,
+          friendly_name: id,
+        },
+      };
+    }
+    const { manager, mappingStorage, registry } = await buildManager(
+      ha,
+      ["sensor.*"],
+      {
+        autoComposedDevices: false,
+        autoHumidityMapping: false,
+        autoPressureMapping: false,
+      },
+    );
+    await manager.refreshDevices();
+    const childNumber = [...manager.root.parts].find(
+      (part) => (part as EntityEndpoint).entityId === "sensor.humidity",
+    )?.number;
+    mappingStorage.put("bridge-445", {
+      entityId: "sensor.temperature",
+      composeDevice: true,
+      composedEntities: [
+        { entityId: "sensor.humidity", matterDeviceType: "humidity_sensor" },
+      ],
+    });
+    await manager.refreshDevices();
+    expect(registry.isAutoComposedDevicesEnabled()).toBe(false);
+    const primary = [...manager.root.parts].find(
+      (part) => (part as EntityEndpoint).entityId === "sensor.temperature",
+    );
+    expect(primary?.parts.size).toBe(2);
+    expect(
+      [...manager.root.parts].some(
+        (part) => (part as EntityEndpoint).entityId === "sensor.humidity",
+      ),
+    ).toBe(false);
+    expect(
+      [...manager.root.parts].some(
+        (part) => (part as EntityEndpoint).entityId === "sensor.other_humidity",
+      ),
+    ).toBe(true);
+    await mappingStorage.deleteMapping("bridge-445", "sensor.temperature");
+    await manager.refreshDevices();
+    expect(
+      [...manager.root.parts].find(
+        (part) => (part as EntityEndpoint).entityId === "sensor.humidity",
+      )?.number,
+    ).toBe(childNumber);
+  });
   it("updateStates with a changed set skips plugin parts and updates the entity", async () => {
     const ha = makeHa();
     const { manager } = await buildManager(ha);
