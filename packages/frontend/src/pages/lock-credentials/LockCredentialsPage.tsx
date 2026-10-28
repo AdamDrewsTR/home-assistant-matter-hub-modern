@@ -312,6 +312,7 @@ export const LockCredentialsPage = ({
                   />
                 </ListItemIcon>
                 <ListItemText
+                  sx={{ minWidth: 0, overflowWrap: "anywhere" }}
                   primary={credential.name || credential.entityId}
                   secondary={
                     <>

@@ -88,6 +88,14 @@ export const appTheme = createTheme({
     borderRadius: 12,
   },
   components: {
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
+        },
+      },
+    },
     MuiAutocomplete: {
       styleOverrides: {
         root: {

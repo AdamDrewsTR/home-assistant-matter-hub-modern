@@ -127,7 +127,9 @@ export const LogViewer = ({ open, onClose }: LogViewerProps) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <DialogTitle
+        sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}
+      >
         <BugReportIcon />
         {t("logs.title")}
         <Box sx={{ flexGrow: 1 }} />
@@ -147,8 +149,17 @@ export const LogViewer = ({ open, onClose }: LogViewerProps) => {
 
       <DialogContent>
         <Stack spacing={2} sx={{ mb: 2 }}>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 200 }}>
+          <Stack
+            direction="row"
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+            alignItems="center"
+          >
+            <FormControl
+              size="small"
+              sx={{ minWidth: 0, width: { xs: "100%", sm: 200 } }}
+            >
               <InputLabel>{t("logs.logLevel")}</InputLabel>
               <Select
                 value={level}
@@ -186,7 +197,11 @@ export const LogViewer = ({ open, onClose }: LogViewerProps) => {
               placeholder={t("logs.searchPlaceholder")}
               value={search}
               onChange={handleSearchChange}
-              sx={{ flexGrow: 1 }}
+              sx={{
+                flexGrow: 1,
+                minWidth: 0,
+                width: { xs: "100%", sm: "auto" },
+              }}
             />
 
             <Button variant="outlined" onClick={fetchLogs}>
