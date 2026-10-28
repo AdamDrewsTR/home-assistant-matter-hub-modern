@@ -91,7 +91,6 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("bundle approval", () => {
-  // This multi-dialog flow shares CI resources with the backend suite.
   it("builds and saves a custom device with explicitly chosen sub-device types", async () => {
     const user = userEvent.setup();
     renderPanel();
@@ -157,7 +156,7 @@ describe("bundle approval", () => {
         },
       ),
     );
-  }, 15_000);
+  });
   it("performs no writes until the user previews, approves, and applies", async () => {
     const user = userEvent.setup();
     renderPanel();
