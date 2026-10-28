@@ -8,6 +8,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // Multi-dialog UI flows share CI runners with the backend suite.
+    testTimeout: 20_000,
   },
   define: {
     __APP_VERSION__: JSON.stringify("0.0.0-test"),
