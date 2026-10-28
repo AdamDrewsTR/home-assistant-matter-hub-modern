@@ -90,7 +90,7 @@ export function CreateHubPage() {
         <Typography variant="h1" sx={{ mt: 1 }}>
           {t("modern.setupTitle")}
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 2 }}>
+        <Typography color="text.secondary" sx={{ mt: { xs: 1, sm: 2 } }}>
           {t("modern.setupDescription")}
         </Typography>
       </Box>
@@ -136,7 +136,7 @@ export function CreateHubPage() {
                 <CardActionArea
                   onClick={() => setController(item.id)}
                   aria-pressed={controller === item.id}
-                  sx={{ p: 3 }}
+                  sx={{ p: { xs: 2, sm: 3 } }}
                 >
                   <Stack direction="row" spacing={2} alignItems="center">
                     <CheckCircleOutline
@@ -160,7 +160,7 @@ export function CreateHubPage() {
         <EntityPicker selected={selected} onChange={setSelected} />
       )}
       {step === 2 && (
-        <Card variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+        <Card variant="outlined" sx={{ p: { xs: 2, sm: 3, md: 5 } }}>
           <Typography variant="h2">{name}</Typography>
           <Typography color="primary" sx={{ mt: 2, mb: 2 }}>
             {t("modern.reviewSummary", {
@@ -184,12 +184,17 @@ export function CreateHubPage() {
         useFlexGap
         sx={{
           position: "sticky",
-          bottom: 16,
+          bottom: { xs: 0, sm: 16 },
           bgcolor: "background.paper",
-          p: 2,
+          mx: { xs: -2, sm: 0 },
+          px: 2,
+          pt: { xs: 1.5, sm: 2 },
+          pb: { xs: "calc(12px + env(safe-area-inset-bottom))", sm: 2 },
           border: "1px solid",
           borderColor: "divider",
-          borderRadius: 3,
+          borderWidth: { xs: "1px 0 0", sm: 1 },
+          borderRadius: { xs: 0, sm: 3 },
+          rowGap: 1,
           zIndex: 2,
         }}
       >
@@ -204,6 +209,7 @@ export function CreateHubPage() {
           variant="body2"
           color="text.secondary"
           sx={{
+            display: step === 0 ? { xs: "none", sm: "block" } : undefined,
             flex: { xs: "1 0 100%", sm: 1 },
             order: { xs: -1, sm: 0 },
           }}

@@ -10,10 +10,12 @@ import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
+import type { Theme } from "@mui/material/styles";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -306,6 +308,7 @@ export function HomePage() {
   const bridge = params.has("hub")
     ? bridges?.find((item) => item.id === params.get("hub"))
     : bridges?.[0];
+  const compact = useMediaQuery((theme: Theme) => theme.breakpoints.down("sm"));
   const requestedView = params.get("view") ?? "devices";
   const view = ["pair", "bundles", "advanced", "health"].includes(requestedView)
     ? requestedView
@@ -323,7 +326,7 @@ export function HomePage() {
   }, [location.state]);
 
   return (
-    <Stack spacing={4}>
+    <Stack spacing={{ xs: 2.5, sm: 4 }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
@@ -333,7 +336,13 @@ export function HomePage() {
           <Typography variant="h1" ref={heading} tabIndex={-1}>
             {t("homeBrowser.title")}
           </Typography>
-          <Typography color="text.secondary" sx={{ mt: 1.5 }}>
+          <Typography
+            color="text.secondary"
+            sx={{
+              mt: { xs: 0.5, sm: 1.5 },
+              fontSize: { xs: "0.9375rem", sm: "1rem" },
+            }}
+          >
             {t("homeBrowser.subtitle")}
           </Typography>
         </Box>
@@ -343,7 +352,8 @@ export function HomePage() {
               select
               label={t("modern.currentHub")}
               value={bridge?.id ?? ""}
-              sx={{ minWidth: 180 }}
+              size={compact ? "small" : "medium"}
+              sx={{ minWidth: { xs: 0, sm: 180 }, flex: { xs: 1, sm: "none" } }}
               onChange={(event) =>
                 setParams({
                   hub: event.target.value,
@@ -366,6 +376,7 @@ export function HomePage() {
             to="/setup"
             variant={bridge ? "outlined" : "contained"}
             startIcon={<Add />}
+            sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
           >
             {t("modern.addHub")}
           </Button>
@@ -441,6 +452,7 @@ export function HomePage() {
               <Chip
                 key={label}
                 variant="outlined"
+                size={compact ? "small" : "medium"}
                 label={`${label}: ${value}`}
               />
             ))}
@@ -485,7 +497,12 @@ export function HomePage() {
               alignItems="center"
               justifyContent="space-between"
               spacing={1}
-              sx={{ mb: 3, borderBottom: "1px solid", borderColor: "divider" }}
+              sx={{
+                mb: { xs: 2, sm: 3 },
+                mx: { xs: -2, sm: 0 },
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              }}
             >
               <Tabs
                 value={view}
@@ -497,17 +514,42 @@ export function HomePage() {
                 aria-label={t("modern.hubViews")}
                 sx={{
                   minWidth: 0,
+                  minHeight: { xs: 44, sm: 48 },
+                  "& .MuiTabs-scrollButtons": { width: 28 },
+                  "& .MuiTabs-scrollButtons.Mui-disabled": { opacity: 0.3 },
                   "& .MuiTab-root": {
                     minWidth: 0,
-                    px: { xs: 1, sm: 2 },
-                    fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                    minHeight: { xs: 44, sm: 48 },
+                    px: { xs: 1.25, sm: 2 },
+                    textTransform: { xs: "none", sm: "uppercase" },
+                    fontSize: { xs: "0.875rem", sm: "0.875rem" },
                   },
                 }}
               >
-                <Tab value="devices" label={t("modern.yourDevices")} />
-                <Tab value="pair" label={t("modern.pairing")} />
-                <Tab value="bundles" label={t("bundles.title")} />
-                <Tab value="health" label={t("deviceWorkspace.health.title")} />
+                <Tab
+                  value="devices"
+                  label={
+                    compact ? t("modern.tabs.devices") : t("modern.yourDevices")
+                  }
+                />
+                <Tab
+                  value="pair"
+                  label={compact ? t("modern.tabs.pair") : t("modern.pairing")}
+                />
+                <Tab
+                  value="bundles"
+                  label={
+                    compact ? t("modern.tabs.bundles") : t("bundles.title")
+                  }
+                />
+                <Tab
+                  value="health"
+                  label={
+                    compact
+                      ? t("modern.tabs.health")
+                      : t("deviceWorkspace.health.title")
+                  }
+                />
                 <Tab value="advanced" label={t("modern.advanced")} />
               </Tabs>
             </Stack>
@@ -537,7 +579,7 @@ export function HomePage() {
                 <FabricsCard bridge={bridge} />
                 <Button
                   variant="contained"
-                  sx={{ alignSelf: "flex-start" }}
+                  sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
                   onClick={() =>
                     setParams(
                       { hub: bridge.id, view: "devices" },

@@ -43,7 +43,10 @@ export const AppLayout: FC = () => {
           Connection lost, data may be outdated. Reconnecting…
         </Alert>
       )}
-      <Container maxWidth="xl" sx={{ px: { xs: 2, sm: 4, lg: 6 }, pt: 6 }}>
+      <Container
+        maxWidth="xl"
+        sx={{ px: { xs: 2, sm: 4, lg: 6 }, pt: { xs: 3, sm: 6 } }}
+      >
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
