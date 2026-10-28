@@ -245,6 +245,8 @@ export function HealthDashboard(props: HealthDashboardProps = {}) {
         alignItems="center"
         justifyContent="space-between"
         mb={2}
+        flexWrap="wrap"
+        gap={1}
       >
         <Box display="flex" alignItems="center" gap={1}>
           {statusIcon}

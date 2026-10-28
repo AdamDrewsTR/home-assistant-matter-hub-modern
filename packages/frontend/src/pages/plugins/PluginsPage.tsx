@@ -624,6 +624,8 @@ export const PluginsPage = ({ embedded = false }: { embedded?: boolean }) => {
                               sx={{
                                 display: "flex",
                                 alignItems: "center",
+                                flexWrap: "wrap",
+                                overflowWrap: "anywhere",
                                 gap: 1,
                               }}
                             >

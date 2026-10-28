@@ -249,14 +249,20 @@ export function EntityPicker({
           <Stack
             direction={{ xs: "row", md: "column" }}
             spacing={0.5}
-            sx={{ overflowX: "auto", pb: 1 }}
+            useFlexGap
+            sx={{ flexWrap: { xs: "wrap", md: "nowrap" }, pb: 1 }}
           >
             <Button
               aria-pressed={!area}
               startIcon={<HomeOutlined />}
               variant={!area ? "contained" : "text"}
               onClick={() => setArea("")}
-              sx={{ justifyContent: "flex-start", flexShrink: 0 }}
+              sx={{
+                justifyContent: "flex-start",
+                maxWidth: "100%",
+                minWidth: 0,
+                overflowWrap: "anywhere",
+              }}
             >
               {t("homeBrowser.wholeHome")}
             </Button>
@@ -270,7 +276,8 @@ export function EntityPicker({
                 sx={{
                   justifyContent: "space-between",
                   gap: 1,
-                  flexShrink: 0,
+                  maxWidth: "100%",
+                  minWidth: 0,
                   overflowWrap: "anywhere",
                 }}
               >

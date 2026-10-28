@@ -363,7 +363,11 @@ export const AreaBridgeSetupPage = ({
                             />
                             <Typography
                               variant="subtitle2"
-                              sx={{ flexGrow: 1 }}
+                              sx={{
+                                flexGrow: 1,
+                                minWidth: 0,
+                                overflowWrap: "anywhere",
+                              }}
                             >
                               {area.name}
                             </Typography>

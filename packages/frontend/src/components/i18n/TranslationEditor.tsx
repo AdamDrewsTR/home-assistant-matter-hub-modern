@@ -612,7 +612,10 @@ export function TranslationEditor() {
                 key={entry.key}
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto" },
+                  gridTemplateColumns: {
+                    xs: "minmax(0, 1fr)",
+                    md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                  },
                   gap: 1,
                   mb: 1.5,
                   alignItems: "start",
@@ -622,7 +625,7 @@ export function TranslationEditor() {
                   <Typography
                     variant="caption"
                     color="text.secondary"
-                    sx={{ fontFamily: "monospace" }}
+                    sx={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
                   >
                     {entry.key}
                   </Typography>

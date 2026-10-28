@@ -62,6 +62,24 @@ for (const width of [320, 390, 430, 1280]) {
       expect(
         await app.locator("html").evaluate((html) => html.scrollWidth),
       ).toBe(width);
+      for (const locator of [
+        app.getByRole("navigation", { name: "Your spaces" }),
+        app.getByRole("textbox", { name: "Search devices and entities" }),
+        app
+          .getByRole("navigation", { name: "Your spaces" })
+          .getByRole("button"),
+      ]) {
+        const bounds = await locator.evaluateAll((elements) =>
+          elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            return { left: rect.left, right: rect.right };
+          }),
+        );
+        for (const rect of bounds) {
+          expect(rect.left).toBeGreaterThanOrEqual(0);
+          expect(rect.right).toBeLessThanOrEqual(width);
+        }
+      }
     }
 
     await expectFits();

@@ -226,7 +226,15 @@ export const SystemInfo = () => {
                     sx={{ display: "flex", justifyContent: "space-between" }}
                   >
                     <Typography variant="body2">Hostname:</Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        minWidth: 0,
+                        overflowWrap: "anywhere",
+                        textAlign: "right",
+                      }}
+                    >
                       {systemInfo.hostname}
                     </Typography>
                   </Box>

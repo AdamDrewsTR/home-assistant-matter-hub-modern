@@ -81,6 +81,7 @@ const SortableBridgeCard = ({ bridge, index }: SortableBridgeCardProps) => {
         "&:active": { cursor: "grabbing" },
         bgcolor: isDragging ? "action.selected" : "background.paper",
         width: "fit-content",
+        maxWidth: "100%",
       }}
     >
       <CardContent
@@ -119,6 +120,7 @@ const SortableBridgeCard = ({ bridge, index }: SortableBridgeCardProps) => {
             sx={{
               width: 40,
               height: 40,
+              flexShrink: 0,
               borderRadius: "50%",
               objectFit: "cover",
               boxShadow: 2,
@@ -130,6 +132,7 @@ const SortableBridgeCard = ({ bridge, index }: SortableBridgeCardProps) => {
               bgcolor: getBridgeIconColor(bridge),
               width: 40,
               height: 40,
+              flexShrink: 0,
               boxShadow: 2,
             }}
           >
@@ -140,8 +143,12 @@ const SortableBridgeCard = ({ bridge, index }: SortableBridgeCardProps) => {
           </Avatar>
         )}
 
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="subtitle1" fontWeight={500}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={500}
+            sx={{ overflowWrap: "anywhere" }}
+          >
             {bridge.name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
