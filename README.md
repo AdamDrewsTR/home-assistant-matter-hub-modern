@@ -12,6 +12,10 @@ The UI identifies itself as **Matter Hub Modern** with its version and source re
 
 The existing add-on slugs are retained. Back up your configuration before updating; do not uninstall or factory-reset an existing paired hub to change its UI. Installing a different repository's add-on may use separate storage even when the slug is the same; retain the old installation and use configuration backup/restore deliberately.
 
+## Publishing this fork's documentation
+
+The documentation workflow deploys to `https://adamdrewstr.github.io/home-assistant-matter-hub-modern/`. Before the first deployment, enable **Settings > Pages > Build and deployment > Source: GitHub Actions** in this repository, then rerun **Deploy Documentation**. The workflow's `GITHUB_TOKEN` can deploy an existing Pages site but cannot create one; adding `enablement: true` alone does not grant that permission.
+
 ## Upstream engine and reference documentation
 
 The inherited release notes and installation examples below describe the upstream engine. Their upstream images and npm packages do **not** contain the Modern workspace.

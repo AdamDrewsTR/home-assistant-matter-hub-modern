@@ -8,11 +8,11 @@ const config: Config = {
   tagline: "Expose Home Assistant devices as Matter devices",
   favicon: "img/hamh-logo-small.png",
 
-  url: "https://riddix.github.io",
-  baseUrl: "/home-assistant-matter-hub/",
+  url: "https://adamdrewstr.github.io",
+  baseUrl: "/home-assistant-matter-hub-modern/",
 
-  organizationName: "riddix",
-  projectName: "home-assistant-matter-hub",
+  organizationName: "AdamDrewsTR",
+  projectName: "home-assistant-matter-hub-modern",
 
   onBrokenLinks: "throw",
   trailingSlash: false,
@@ -30,7 +30,7 @@ const config: Config = {
           sidebarPath: "./sidebars.ts",
           routeBasePath: "/",
           editUrl:
-            "https://github.com/riddix/home-assistant-matter-hub/tree/main/docs-site/",
+            "https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern/tree/main/docs-site/",
         },
         blog: false,
         theme: {
@@ -119,7 +119,7 @@ const config: Config = {
           label: "Documentation",
         },
         {
-          href: "https://github.com/riddix/home-assistant-matter-hub",
+          href: "https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern",
           label: "GitHub",
           position: "right",
         },
