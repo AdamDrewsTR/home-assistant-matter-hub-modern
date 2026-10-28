@@ -23,7 +23,13 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { useCreateBridge } from "../../hooks/data/bridges.ts";
 import { navigation } from "../../routes.tsx";
 import { EntityPicker } from "./EntityPicker.tsx";
-import { selectionFilter } from "./sharing.ts";
+import { LocationSharing } from "./LocationSharing.tsx";
+import { SharingMode } from "./SharingMode.tsx";
+import {
+  emptyLocationSharing,
+  locationFilter,
+  selectionFilter,
+} from "./sharing.ts";
 
 const AdvancedHubSetup = lazy(() =>
   import("./AdvancedHubSetup.tsx").then((module) => ({
@@ -40,18 +46,29 @@ export function CreateHubPage() {
   const [name, setName] = useState(t("modern.defaultName"));
   const [controller, setController] = useState<ControllerType>("alexa");
   const [selected, setSelected] = useState<string[]>([]);
+  const [follow, setFollow] = useState(false);
+  const [locationSharing, setLocationSharing] = useState(emptyLocationSharing);
+  const [locationPreview, setLocationPreview] = useState<string[]>();
+  const [locationSummary, setLocationSummary] = useState("");
+  const selectionReady = follow
+    ? locationPreview !== undefined &&
+      !!(locationSharing.areaIds.length || locationSharing.floorIds.length)
+    : !!selected.length;
+  const count = follow ? (locationPreview?.length ?? 0) : selected.length;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const profile = controllerProfiles.find((item) => item.id === controller)!;
 
   async function create() {
-    if (saving || !name.trim() || !selected.length) return;
+    if (saving || !name.trim() || !selectionReady) return;
     setSaving(true);
     setError(undefined);
     try {
       const bridge = await createBridge({
         name: name.trim(),
-        filter: selectionFilter(selected),
+        filter: follow
+          ? locationFilter(locationSharing)
+          : selectionFilter(selected),
         featureFlags: { ...profile.featureFlags },
       });
       navigate(`/?hub=${encodeURIComponent(bridge.id)}&view=pair`, {
@@ -157,14 +174,26 @@ export function CreateHubPage() {
         </Stack>
       )}
       {step === 1 && (
-        <EntityPicker selected={selected} onChange={setSelected} />
+        <Stack spacing={3}>
+          <SharingMode follow={follow} onChange={setFollow} />
+          {follow ? (
+            <LocationSharing
+              value={locationSharing}
+              onChange={setLocationSharing}
+              onPreview={setLocationPreview}
+              onSummary={setLocationSummary}
+            />
+          ) : (
+            <EntityPicker selected={selected} onChange={setSelected} />
+          )}
+        </Stack>
       )}
       {step === 2 && (
         <Card variant="outlined" sx={{ p: { xs: 2, sm: 3, md: 5 } }}>
           <Typography variant="h2">{name}</Typography>
           <Typography color="primary" sx={{ mt: 2, mb: 2 }}>
             {t("modern.reviewSummary", {
-              count: selected.length,
+              count,
               controller: profile.name,
             })}
           </Typography>
@@ -174,6 +203,11 @@ export function CreateHubPage() {
           <Alert severity="info" sx={{ mt: 3 }}>
             {t("modern.networkNote")}
           </Alert>
+          {follow && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              {locationSummary} {t("locationSharing.reviewWarning")}
+            </Alert>
+          )}
         </Card>
       )}
       <Stack
@@ -214,12 +248,12 @@ export function CreateHubPage() {
             order: { xs: -1, sm: 0 },
           }}
         >
-          {t("modern.selectedCount", { count: selected.length })}
+          {t("modern.selectedCount", { count })}
         </Typography>
         <Button
           variant="contained"
           sx={{ flexGrow: { xs: 1, sm: 0 } }}
-          disabled={saving || !name.trim() || (step > 0 && !selected.length)}
+          disabled={saving || !name.trim() || (step > 0 && !selectionReady)}
           endIcon={<ArrowForward />}
           onClick={() => (step === 2 ? create() : setStep(step + 1))}
         >

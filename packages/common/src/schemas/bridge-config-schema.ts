@@ -118,10 +118,44 @@ const homeAssistantMatcherSchema: JSONSchema7 = {
   additionalProperties: false,
 };
 
-const homeAssistantFilterSchema: JSONSchema7 = {
+export const homeAssistantFilterSchema: JSONSchema7 = {
   title: "Include or exclude entities",
   type: "object",
   properties: {
+    location: {
+      title: "Follow rooms or floors",
+      type: "object",
+      properties: {
+        areaIds: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+          uniqueItems: true,
+        },
+        floorIds: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+          uniqueItems: true,
+        },
+        excludedDeviceIds: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+          uniqueItems: true,
+        },
+        excludedEntityIds: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+          uniqueItems: true,
+        },
+        includeDiagnosticEntities: { type: "boolean" },
+      },
+      required: [
+        "areaIds",
+        "floorIds",
+        "excludedDeviceIds",
+        "excludedEntityIds",
+      ],
+      additionalProperties: false,
+    },
     include: {
       title: "Include",
       type: "array",

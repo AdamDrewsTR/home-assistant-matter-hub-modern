@@ -2,6 +2,8 @@
 
 This fork replaces the everyday sharing screen with Home Assistant rooms and physical-device cards. Select a card to share its visible entities; expand it only to fine-tune individual entities. Existing sharing rules can be browsed without changes and explicitly converted to a reviewed selection.
 
+Choose a fixed selection, or use **Follow rooms or floors** to automatically share eligible devices as Home Assistant location membership changes. Whole-device and individual-entity exceptions are optional. See the [device sharing guide](docs-site/docs/getting-started/sharing-devices.md) for setup, safe defaults, and how automatic enrollment differs from Matter bundles. Location sharing requires a release containing this feature.
+
 ## Installing this fork
 
 Add `https://github.com/AdamDrewsTR/home-assistant-matter-hub-modern` to the Home Assistant add-on store and choose **Matter Hub Modern**. The catalog uses `ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon`, not RiDDiX's images. A `Release Modern Workspace` workflow must successfully publish the matching image before that catalog version can be installed. The catalog is updated automatically after publication; importing source alone does not publish an image.

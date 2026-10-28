@@ -1,8 +1,16 @@
+import {
+  type HomeAssistantFilter,
+  matchesLocationSharing,
+} from "@home-assistant-matter-hub/common";
 import type { Page } from "@playwright/test";
 
 export const longName =
   "Office_with_a_long_unbroken_Home_Assistant_name_".repeat(3);
 export const hubName = "Home_with_a_long_unbroken_name";
+const locationAreas = [
+  { area_id: "office", name: longName, floor_id: "upstairs" },
+  { area_id: "hall", name: "Hallway", floor_id: "downstairs" },
+];
 const entities = [
   {
     entity_id: "sensor.temperature",
@@ -235,6 +243,13 @@ export async function mockWorkspace(page: Page) {
         { area_id: "office", name: longName },
         { area_id: "hall", name: "Hallway" },
       ],
+      "matter/locations": {
+        areas: locationAreas,
+        floors: [
+          { floor_id: "upstairs", name: "Upstairs" },
+          { floor_id: "downstairs", name: "Downstairs" },
+        ],
+      },
       "matter/areas/summary": [
         {
           area_id: "office",
@@ -379,6 +394,27 @@ export async function mockWorkspace(page: Page) {
         ],
       },
     };
+    if (path === "matter/filter-preview" && request.method() === "POST") {
+      const filter = request.postDataJSON() as HomeAssistantFilter;
+      const location = filter.location;
+      if (location) {
+        const matching = entities.filter((entity) =>
+          matchesLocationSharing(
+            location,
+            { ...entity, device_id: entity.device_id || "" },
+            { id: entity.device_id, area_id: entity.device_area_id },
+            locationAreas,
+          ),
+        );
+        await route.fulfill({
+          json: {
+            total: matching.length,
+            entityIds: matching.map((entity) => entity.entity_id),
+          },
+        });
+        return;
+      }
+    }
     if (path.endsWith("/icon")) {
       await route.fulfill({ status: 404 });
     } else if (
@@ -410,5 +446,5 @@ export async function mockWorkspace(page: Page) {
       <iframe title="Matter Hub Modern" src="${new URL(route.request().url()).searchParams.get("path") || "/"}"></iframe></body></html>`,
     }),
   );
-  return { unexpected, errors };
+  return { unexpected, errors, bridge };
 }

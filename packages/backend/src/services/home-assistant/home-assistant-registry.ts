@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import type {
+  HomeAssistantAreaRegistry,
   HomeAssistantDeviceRegistry,
   HomeAssistantEntityRegistry,
   HomeAssistantEntityState,
+  HomeAssistantFloorRegistry,
 } from "@home-assistant-matter-hub/common";
 import { Logger } from "@matter/general";
 import type { HassEntity } from "home-assistant-js-websocket";
@@ -14,6 +16,7 @@ import { sendHaMessage } from "../../utils/send-ha-message.js";
 import {
   getAreaRegistry,
   getDeviceRegistry,
+  getFloorRegistry,
   getLabelRegistry,
   getRegistry,
   type HomeAssistantLabel,
@@ -68,6 +71,14 @@ export class HomeAssistantRegistry extends Service {
   }
 
   private _areas: HomeAssistantAreas = new Map();
+  private _areaRegistry: HomeAssistantAreaRegistry[] = [];
+  get areaRegistry() {
+    return this._areaRegistry;
+  }
+  private _floors: HomeAssistantFloorRegistry[] = [];
+  get floors() {
+    return this._floors;
+  }
   get areas() {
     return this._areas;
   }
@@ -199,7 +210,7 @@ export class HomeAssistantRegistry extends Service {
     // guaranteed on older HA versions, so a failure there never fails the
     // whole reload.
     const timeoutMs = this.options.messageTimeoutMs;
-    const [entityRegistry, statesList, deviceRegistry, labels, areas] =
+    const [entityRegistry, statesList, deviceRegistry, labels, areas, floors] =
       await Promise.all([
         getRegistry(connection, timeoutMs),
         sendHaMessage<HassEntity[]>(
@@ -211,9 +222,22 @@ export class HomeAssistantRegistry extends Service {
         // failed query: keep last labels, empty would unmount filtered
         // endpoints (#500)
         getLabelRegistry(connection, timeoutMs).catch(() => this._labels),
-        getAreaRegistry(connection, timeoutMs).catch(
-          () => [] as Array<{ area_id: string; name: string }>,
-        ),
+        // Location membership drives removals. Never replace a failed query
+        // with an empty registry, which would unshare an entire floor.
+        getAreaRegistry(connection, timeoutMs).catch((error) => {
+          logger.warn(
+            "Area registry unavailable; retaining previous locations:",
+            error,
+          );
+          return this._areaRegistry;
+        }),
+        getFloorRegistry(connection, timeoutMs).catch((error) => {
+          logger.warn(
+            "Floor registry unavailable; retaining previous floors:",
+            error,
+          );
+          return this._floors;
+        }),
       ]);
 
     // Fingerprint structural registry data to detect changes.
@@ -234,7 +258,9 @@ export class HomeAssistantRegistry extends Service {
       );
     }
     for (const l of labels) hash.update(`${l.label_id}\n`);
-    for (const a of areas) hash.update(`${a.area_id}\0${a.name}\n`);
+    for (const a of areas)
+      hash.update(`${a.area_id}\0${a.name}\0${a.floor_id ?? ""}\n`);
+    for (const f of floors) hash.update(`${f.floor_id}\0${f.name}\n`);
     const fingerprint = hash.digest("hex");
 
     // A snapshot taken while HA was starting is partial. Publishing it would
@@ -293,6 +319,8 @@ export class HomeAssistantRegistry extends Service {
 
     this._labels = labels;
     this._areas = new Map(areas.map((a) => [a.area_id, a.name]));
+    this._areaRegistry = areas;
+    this._floors = floors;
 
     return true;
   }

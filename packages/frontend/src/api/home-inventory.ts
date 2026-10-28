@@ -1,5 +1,18 @@
-import type { HomeAssistantFilter } from "@home-assistant-matter-hub/common";
+import type {
+  HomeAssistantAreaRegistry,
+  HomeAssistantFilter,
+  HomeAssistantFloorRegistry,
+} from "@home-assistant-matter-hub/common";
 import { assertOk, parseJsonResponse } from "./fetch-utils.ts";
+
+export async function fetchLocations(signal?: AbortSignal) {
+  const response = await fetch("api/matter/locations", { signal });
+  await assertOk(response, "Could not load rooms and floors");
+  return parseJsonResponse<{
+    areas: HomeAssistantAreaRegistry[];
+    floors: HomeAssistantFloorRegistry[];
+  }>(response);
+}
 
 export async function fetchSharingSelection(
   filter: HomeAssistantFilter,

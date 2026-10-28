@@ -47,6 +47,38 @@ const defaultOptions = {
 };
 
 describe("HomeAssistantRegistry", () => {
+  it("reconciles floor membership changes and retains locations when their query fails", async () => {
+    const fake = makeConnection();
+    let floor = "upstairs";
+    let fail = false;
+    fake.connection.sendMessagePromise = vi.fn((message: { type: string }) => {
+      if (message.type === "config/area_registry/list") {
+        return fail
+          ? Promise.reject(new Error("area registry offline"))
+          : Promise.resolve([
+              { area_id: "office", name: "Office", floor_id: floor },
+            ]);
+      }
+      if (message.type === "config/floor_registry/list")
+        return Promise.resolve([{ floor_id: floor, name: floor }]);
+      return Promise.resolve([]);
+    }) as Connection["sendMessagePromise"];
+    const client = {
+      connection: fake.connection,
+      haRunning: true,
+    } as HomeAssistantClient;
+    const registry = new HomeAssistantRegistry(client, defaultOptions);
+    await vi.runAllTimersAsync();
+    await registry.construction;
+    expect(registry.areaRegistry[0].floor_id).toBe("upstairs");
+    await expect(registry.reload()).resolves.toBe(false);
+    floor = "downstairs";
+    await expect(registry.reload()).resolves.toBe(true);
+    expect(registry.areaRegistry[0].floor_id).toBe("downstairs");
+    fail = true;
+    await registry.reload();
+    expect(registry.areaRegistry[0].floor_id).toBe("downstairs");
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

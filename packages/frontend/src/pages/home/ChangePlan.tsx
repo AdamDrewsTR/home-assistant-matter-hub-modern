@@ -50,11 +50,13 @@ export function ChangePlanContent({
   after,
   snapshot,
   onSnapshotChange,
+  warning,
 }: {
   before: string[];
   after: string[];
   snapshot: boolean;
   onSnapshotChange: (value: boolean) => void;
+  warning?: string;
 }) {
   const { t } = useTranslation();
   const changes = selectionChanges(before, after);
@@ -83,7 +85,9 @@ export function ChangePlanContent({
           </Stack>
         </Box>
       ))}
-      <Alert severity="warning">{t("deviceWorkspace.plan.warning")}</Alert>
+      <Alert severity="warning">
+        {warning ?? t("deviceWorkspace.plan.warning")}
+      </Alert>
       <FormControlLabel
         control={
           <Checkbox
@@ -106,6 +110,7 @@ export function ChangePlanDialog({
   onApply,
   onClose,
   onBusyChange,
+  notice,
 }: {
   open: boolean;
   before: string[];
@@ -113,6 +118,7 @@ export function ChangePlanDialog({
   onApply: () => Promise<void>;
   onClose: () => void;
   onBusyChange?: (busy: boolean) => void;
+  notice?: string;
 }) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState(false);
@@ -140,6 +146,7 @@ export function ChangePlanDialog({
               after={after}
               snapshot={snapshot}
               onSnapshotChange={setSnapshot}
+              warning={notice}
             />
             <FormControlLabel
               control={
