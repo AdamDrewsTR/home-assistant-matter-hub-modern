@@ -1,5 +1,7 @@
 import { createTheme } from "@mui/material/styles";
 
+const phone = "@media (max-width:599.95px)";
+
 export const appTheme = createTheme({
   cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
@@ -55,22 +57,27 @@ export const appTheme = createTheme({
       fontSize: "clamp(2rem, 4vw, 3.2rem)",
       fontWeight: 600,
       letterSpacing: "-0.045em",
+      [phone]: { fontSize: "1.75rem", letterSpacing: "-0.03em" },
     },
     h2: {
       fontSize: "2rem",
       fontWeight: 500,
+      [phone]: { fontSize: "1.375rem", fontWeight: 600 },
     },
     h3: {
       fontSize: "1.75rem",
       fontWeight: 500,
+      [phone]: { fontSize: "1.125rem", fontWeight: 600 },
     },
     h4: {
       fontSize: "1.5rem",
       fontWeight: 500,
+      [phone]: { fontSize: "1.125rem" },
     },
     h5: {
       fontSize: "1.25rem",
       fontWeight: 500,
+      [phone]: { fontSize: "1.0625rem" },
     },
     h6: {
       fontSize: "1rem",
@@ -92,6 +99,31 @@ export const appTheme = createTheme({
         option: { overflowWrap: "anywhere", minWidth: 0 },
       },
     },
+    MuiDialog: {
+      styleOverrides: {
+        paperFullWidth: {
+          [phone]: {
+            margin: 0,
+            width: "100%",
+            maxWidth: "100%",
+            height: "100%",
+            maxHeight: "100%",
+            borderRadius: 0,
+          },
+        },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: {
+          flexWrap: "wrap",
+          [phone]: {
+            borderTop: "1px solid var(--mui-palette-divider)",
+            paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
+          },
+        },
+      },
+    },
     MuiDialogContent: {
       styleOverrides: {
         root: { minWidth: 0, overflowWrap: "anywhere" },
@@ -102,9 +134,32 @@ export const appTheme = createTheme({
         root: { overflowWrap: "anywhere" },
       },
     },
-    MuiDialogActions: {
+    MuiAlert: {
       styleOverrides: {
-        root: { flexWrap: "wrap" },
+        root: {
+          [phone]: {
+            flexWrap: "wrap",
+            padding: "6px 12px",
+          },
+        },
+        message: { minWidth: 0, flex: 1, overflowWrap: "anywhere" },
+        action: {
+          [phone]: {
+            flexBasis: "100%",
+            marginLeft: 0,
+            marginRight: 0,
+            padding: "0 0 4px 30px",
+            justifyContent: "flex-start",
+          },
+        },
+      },
+    },
+    MuiTabs: {
+      defaultProps: { allowScrollButtonsMobile: true },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: { [phone]: { padding: 16 } },
       },
     },
     MuiCard: {
@@ -124,7 +179,10 @@ export const appTheme = createTheme({
           fontWeight: 500,
           boxShadow: "none",
           padding: "10px 18px",
+          [phone]: { padding: "8px 14px" },
         },
+        sizeSmall: { padding: "4px 10px" },
+        text: { [phone]: { paddingLeft: 8, paddingRight: 8 } },
       },
     },
     MuiChip: {

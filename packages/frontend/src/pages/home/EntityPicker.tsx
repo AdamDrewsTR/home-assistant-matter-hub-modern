@@ -311,7 +311,7 @@ export function EntityPicker({
             <Typography
               variant="body2"
               color="text.secondary"
-              sx={{ mr: "auto" }}
+              sx={{ mr: "auto", flex: { xs: "1 0 100%", sm: "0 1 auto" } }}
             >
               {t("homeBrowser.count", {
                 devices: visibleGroups.length,
@@ -461,7 +461,7 @@ export function EntityPicker({
                           key={group.id}
                           variant="outlined"
                           sx={{
-                            p: 2.5,
+                            p: { xs: 2, sm: 2.5 },
                             borderColor: count ? "primary.main" : "divider",
                             bgcolor: count
                               ? "action.selected"

@@ -320,7 +320,13 @@
     "discardMessage": "Unsaved device edits or sharing selections will be discarded.",
     "stay": "Keep editing",
     "remoteChanged": "This hub was changed elsewhere. Reload its selection before applying your changes.",
-    "reloadSelection": "Reload selection"
+    "reloadSelection": "Reload selection",
+    "tabs": {
+      "devices": "Devices",
+      "pair": "Pair",
+      "bundles": "Bundles",
+      "health": "Health"
+    }
   },
   "common": {
     "loading": "Loading",
