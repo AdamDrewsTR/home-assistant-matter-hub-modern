@@ -1,3 +1,4 @@
+import type { EntityMappingConfig } from "@home-assistant-matter-hub/common";
 import type { Logger } from "@matter/general";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -114,6 +115,9 @@ function makeHarness(
     fullEntities[id] = { entity_id: id, ...value };
   }
   const registry = {
+    scopedMapping: (mapping: EntityMappingConfig | undefined) => mapping,
+    locationCompanionFingerprint: () => undefined,
+    entityIncludingUnfiltered: (id: string) => fullEntities[id],
     refresh: vi.fn(),
     entityIds,
     firstEntityMatching: vi.fn(() => primary ?? entityIds[0]),

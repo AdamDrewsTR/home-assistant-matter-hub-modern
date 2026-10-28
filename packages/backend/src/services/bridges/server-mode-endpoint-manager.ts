@@ -113,7 +113,9 @@ export class ServerModeEndpointManager extends Service {
   }
 
   private getEntityMapping(entityId: string): EntityMappingConfig | undefined {
-    return this.mappingStorage.getMapping(this.dataProvider.id, entityId);
+    return this.registry.scopedMapping(
+      this.mappingStorage.getMapping(this.dataProvider.id, entityId),
+    );
   }
 
   override async dispose(): Promise<void> {

@@ -10,6 +10,7 @@ import type {
   VacuumRoom,
 } from "@home-assistant-matter-hub/common";
 import {
+  matchesLocationSharing,
   SensorDeviceClass,
   VacuumDeviceFeature,
 } from "@home-assistant-matter-hub/common";
@@ -99,10 +100,57 @@ export class BridgeRegistry {
   // fall back to the full HA registry. keep them separate from the strict
   // accessors above, every other caller must stay filtered.
   initialStateIncludingUnfiltered(entityId: string) {
+    if (this.dataProvider.filter.location && !this._entities[entityId])
+      return undefined;
     return this._states[entityId] ?? this.registry.states[entityId];
   }
   entityIncludingUnfiltered(entityId: string) {
+    if (this.dataProvider.filter.location && !this._entities[entityId])
+      return undefined;
     return this._entities[entityId] ?? this.registry.entities[entityId];
+  }
+
+  locationCompanionFingerprint(entityId: string): string | undefined {
+    // Rebuild existing bundles when a same-device entity joins or leaves scope.
+    if (!this.dataProvider.filter.location) return undefined;
+    const deviceId = this._entities[entityId]?.device_id;
+    return JSON.stringify(
+      deviceId
+        ? values(this._entities)
+            .filter((entity) => entity.device_id === deviceId)
+            .map((entity) => entity.entity_id)
+            .sort()
+        : [],
+    );
+  }
+
+  scopedMapping(mapping: EntityMappingConfig | undefined) {
+    if (!mapping || !this.dataProvider.filter.location) return mapping;
+    const scoped = { ...mapping };
+    for (const [key, value] of Object.entries(scoped)) {
+      if (
+        key.endsWith("Entity") &&
+        typeof value === "string" &&
+        !this._entities[value]
+      )
+        Reflect.deleteProperty(scoped, key);
+    }
+    if (scoped.composedEntities)
+      scoped.composedEntities = scoped.composedEntities.filter(
+        (part) => this._entities[part.entityId],
+      );
+    if (scoped.roomEntities)
+      scoped.roomEntities = scoped.roomEntities.filter(
+        (id) => this._entities[id],
+      );
+    return scoped;
+  }
+
+  private get companionEntities() {
+    // Preserve legacy companion discovery, but never bypass a location scope.
+    return this.dataProvider.filter.location
+      ? this._entities
+      : this.registry.entities;
   }
   deviceOfIncludingUnfiltered(
     entityId: string,
@@ -160,7 +208,7 @@ export class BridgeRegistry {
     // Search the FULL HA registry, not the filtered bridge entities.
     // The battery sensor might not match the bridge filter (e.g., vacuum
     // server bridges only include vacuum.* entities, not sensor.*).
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     const sameDevice = entities.filter((e) => e.device_id === deviceId);
 
     // Prefer numeric sensor.* battery entities (percentage values).
@@ -247,7 +295,7 @@ export class BridgeRegistry {
   // An enum with a running and a paused state: run (Home Connect, SmartThings),
   // in_use (Miele), running (LG) (#486).
   findOperationalStateEntityForDevice(deviceId: string): string | undefined {
-    for (const entity of values(this.registry.entities)) {
+    for (const entity of values(this.companionEntities)) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("sensor.")) continue;
       const attrs = this.registry.states[entity.entity_id]?.attributes as
@@ -278,7 +326,7 @@ export class BridgeRegistry {
 
     // Search the FULL HA registry, not the filtered bridge entities, the
     // problem sensor may not match the bridge filter (same as battery).
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     const sameDevice = entities.filter((e) => e.device_id === deviceId);
 
     let safety: string | undefined;
@@ -356,7 +404,7 @@ export class BridgeRegistry {
   findHumidityEntityForDevice(deviceId: string): string | undefined {
     // Search the FULL HA registry, not the filtered bridge entities.
     // Same reasoning as findBatteryEntityForDevice.
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     for (const entity of entities) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("sensor.")) continue;
@@ -377,7 +425,7 @@ export class BridgeRegistry {
    * Returns the entity_id of the temperature sensor, or undefined if none found.
    */
   findTemperatureEntityForDevice(deviceId: string): string | undefined {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     for (const entity of entities) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("sensor.")) continue;
@@ -398,7 +446,7 @@ export class BridgeRegistry {
    * Returns the entity_id of the climate entity, or undefined if none found.
    */
   findClimateEntityForDevice(deviceId: string): string | undefined {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     for (const entity of entities) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("climate.")) continue;
@@ -490,7 +538,7 @@ export class BridgeRegistry {
     mopIntensityEntity?: string;
     currentRoomEntity?: string;
   } {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     const sameDevice = entities.filter(
       (e) => e.device_id === deviceId && e.entity_id.startsWith("select."),
     );
@@ -581,7 +629,7 @@ export class BridgeRegistry {
    * - Named segments:   { "1": "Kitchen", "2": "Living Room" }
    */
   findValetudoMapSegments(deviceId: string): VacuumRoom[] {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     const mapSensor = entities.find(
       (e) =>
         e.device_id === deviceId &&
@@ -796,7 +844,7 @@ export class BridgeRegistry {
    * "docked and below full means charging" guess (#450).
    */
   findChargingEntityForDevice(deviceId: string): string | undefined {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     const sameDevice = entities.filter((e) => e.device_id === deviceId);
 
     // Home Assistant's own charging class first.
@@ -828,7 +876,7 @@ export class BridgeRegistry {
    * Returns the entity_id of the pressure sensor, or undefined if none found.
    */
   findPressureEntityForDevice(deviceId: string): string | undefined {
-    const entities = values(this.registry.entities);
+    const entities = values(this.companionEntities);
     for (const entity of entities) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("sensor.")) continue;
@@ -872,7 +920,7 @@ export class BridgeRegistry {
     forEntityId?: string,
   ): string | undefined {
     const candidates: string[] = [];
-    for (const entity of values(this.registry.entities)) {
+    for (const entity of values(this.companionEntities)) {
       if (entity.device_id !== deviceId) continue;
       if (!entity.entity_id.startsWith("sensor.")) continue;
 
@@ -1156,6 +1204,16 @@ export class BridgeRegistry {
     entityState?: HomeAssistantEntityState,
   ) {
     const labels = this.registry.labels;
+    if (
+      filter.location &&
+      !matchesLocationSharing(
+        filter.location,
+        entity,
+        device,
+        this.registry.areaRegistry,
+      )
+    )
+      return false;
     if (
       filter.include.length > 0 &&
       !testMatchers(

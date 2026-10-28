@@ -70,6 +70,31 @@ vi.mock("./EntityPicker.tsx", () => ({
     </button>
   ),
 }));
+vi.mock("./LocationSharing.tsx", () => ({
+  LocationSharing: ({
+    value,
+    onChange,
+    onPreview,
+  }: {
+    value: import("@home-assistant-matter-hub/common").LocationSharing;
+    onChange: (
+      value: import("@home-assistant-matter-hub/common").LocationSharing,
+    ) => void;
+    onPreview: (ids: string[]) => void;
+  }) => {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          onChange({ ...value, areaIds: ["office"] });
+          onPreview(["light.desk"]);
+        }}
+      >
+        Follow Office
+      </button>
+    );
+  },
+}));
 
 function bridge(id: string): BridgeDataWithMetadata {
   return {
@@ -131,6 +156,75 @@ afterEach(() => {
 });
 
 describe("home workspace", () => {
+  it("saves live location rules only after review, preserving the hub identity", async () => {
+    renderHome();
+    await userEvent.click(
+      screen.getByRole("radio", { name: "Follow rooms or floors" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Follow Office" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "future eligible additions and removals",
+    );
+    expect(update).not.toHaveBeenCalled();
+    await approve();
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0]).toMatchObject({
+      id: "one",
+      port: 5540,
+      featureFlags: { stableIdentity: true },
+      filter: {
+        include: [],
+        exclude: [],
+        location: {
+          areaIds: ["office"],
+          floorIds: [],
+          excludedDeviceIds: [],
+          excludedEntityIds: [],
+        },
+      },
+    });
+  });
+  it("requires a preview and allows a deliberate switch back to fixed selection", async () => {
+    bridges[0] = {
+      ...bridges[0],
+      filter: {
+        include: [],
+        exclude: [],
+        location: {
+          areaIds: ["office"],
+          floorIds: [],
+          excludedDeviceIds: [],
+          excludedEntityIds: [],
+        },
+      },
+    };
+    renderHome();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("radio", { name: "Choose devices" }),
+      ).toBeEnabled(),
+    );
+    await userEvent.click(
+      screen.getByRole("radio", { name: "Choose devices" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply changes" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Automatic location sharing will stop",
+    );
+    await approve();
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0].filter).toEqual({
+      include: [{ type: "pattern", value: "light.desk" }],
+      exclude: [],
+    });
+  });
   it("finishes pairing on the same hub's devices without retaining the pairing entry", async () => {
     const router = renderHome();
     await act(() => router.navigate("/?hub=two&view=pair"));

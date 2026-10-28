@@ -2,6 +2,8 @@ import {
   type CreateBridgeRequest,
   createBridgeRequestSchema,
   type HomeAssistantFilter,
+  homeAssistantFilterSchema,
+  matchesLocationSharing,
   type UpdateBridgeRequest,
   updateBridgeRequestSchema,
 } from "@home-assistant-matter-hub/common";
@@ -436,6 +438,14 @@ export function matterApi(
     res.status(200).json(areas);
   });
 
+  router.get("/locations", (_, res) => {
+    if (!haRegistry) {
+      res.status(503).json({ error: "Home Assistant registry not available" });
+      return;
+    }
+    res.json({ areas: haRegistry.areaRegistry, floors: haRegistry.floors });
+  });
+
   router.get("/areas/summary", async (_, res) => {
     if (!haRegistry) {
       res.status(503).json({ error: "Home Assistant registry not available" });
@@ -583,7 +593,7 @@ export function matterApi(
       return;
     }
     const filter = req.body as HomeAssistantFilter;
-    if (!filter?.include || !filter?.exclude) {
+    if (!ajv.validate(homeAssistantFilterSchema, filter)) {
       res.status(400).json({ error: "Invalid filter configuration" });
       return;
     }
@@ -617,7 +627,15 @@ export function matterApi(
         filter.exclude.length > 0 &&
         testMatchers(filter.exclude, device, entity, undefined, state, labels);
 
-      if (included && !excluded) {
+      const locationMatches =
+        !filter.location ||
+        matchesLocationSharing(
+          filter.location,
+          entity,
+          device,
+          haRegistry.areaRegistry,
+        );
+      if (included && !excluded && locationMatches) {
         matchingEntities.push({
           entity_id: entity.entity_id,
           friendly_name: state?.attributes?.friendly_name as string | undefined,

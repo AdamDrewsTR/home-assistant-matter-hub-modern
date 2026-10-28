@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type EntityMappingConfig,
+  type HomeAssistantAreaRegistry,
   HomeAssistantMatcherType,
 } from "@home-assistant-matter-hub/common";
 import { Environment, type Logger, VariableService } from "@matter/general";
@@ -15,6 +16,7 @@ import {
   type HomeAssistantAction,
   HomeAssistantActions,
 } from "../home-assistant/home-assistant-actions.js";
+import { HomeAssistantConfig } from "../home-assistant/home-assistant-config.js";
 import type { EntityIdentityStorage } from "../storage/entity-identity-storage.js";
 import type { EntityMappingStorage } from "../storage/entity-mapping-storage.js";
 import { BridgeDataProvider } from "./bridge-data-provider.js";
@@ -92,6 +94,7 @@ interface FakeHa {
   // biome-ignore lint/suspicious/noExplicitAny: minimal registry stub
   devices: Record<string, any>;
   areas: Map<string, string>;
+  areaRegistry: HomeAssistantAreaRegistry[];
   labels: unknown[];
   snapshotGeneration: number;
 }
@@ -102,6 +105,7 @@ function makeHa(): FakeHa {
     states: {},
     devices: {},
     areas: new Map(),
+    areaRegistry: [],
     labels: [],
     snapshotGeneration: 1,
   };
@@ -180,6 +184,9 @@ async function buildManager(ha: FakeHa, patterns: string[] = ["vacuum.*"]) {
   const env = new Environment("test", Environment.default);
   env.get(VariableService).set("storage.path", dir);
   env.set(BridgeDataProvider, provider);
+  env.set(HomeAssistantConfig, {
+    unitSystem: { temperature: "°C" },
+  } as HomeAssistantConfig);
   env.set(HomeAssistantActions, {
     call(_action: HomeAssistantAction) {},
     fireEvent() {},
@@ -255,6 +262,102 @@ afterEach(async () => {
 });
 
 describe("filter edits reconcile without the grace window (#468)", () => {
+  it("follows device room moves and preserves endpoint numbers when the device returns", async () => {
+    const ha = makeHa();
+    ha.entities[VACUUM].device_id = "robot";
+    ha.devices.robot = { id: "robot", area_id: "office" };
+    ha.areaRegistry = [
+      { area_id: "office", name: "Office", floor_id: "upstairs" },
+    ];
+    const { manager, provider } = await buildManager(ha);
+    provider.update({
+      id: provider.id,
+      name: provider.name,
+      port: provider.port,
+      filter: {
+        include: [],
+        exclude: [],
+        location: {
+          areaIds: [],
+          floorIds: ["upstairs"],
+          excludedDeviceIds: [],
+          excludedEntityIds: [],
+        },
+      },
+    });
+    await manager.refreshDevices();
+    expect(mountedEntityIds(manager)).toEqual([VACUUM]);
+    const number = [...manager.root.parts][0].number;
+    ha.devices.robot.area_id = "elsewhere";
+    await manager.refreshDevices();
+    expect(mountedEntityIds(manager)).toEqual([]);
+    expect(pending(manager).size).toBe(0);
+    ha.devices.robot.area_id = "office";
+    await manager.refreshDevices();
+    expect(mountedEntityIds(manager)).toEqual([VACUUM]);
+    expect([...manager.root.parts][0].number).toBe(number);
+  });
+
+  it("rebuilds composed devices when a location companion is excluded or added", async () => {
+    const ha = makeHa();
+    const temperature = "sensor.temperature";
+    const humidity = "sensor.humidity";
+    for (const id of [temperature, humidity]) {
+      ha.entities[id] = { entity_id: id, device_id: "monitor" };
+      ha.states[id] = {
+        ...ha.states[VACUUM],
+        entity_id: id,
+        state: "25",
+        attributes: {
+          device_class: id.split(".")[1],
+          unit_of_measurement: id === temperature ? "°C" : "%",
+        },
+      };
+    }
+    ha.devices.monitor = { id: "monitor", area_id: "office" };
+    ha.areaRegistry = [{ area_id: "office", name: "Office" }];
+    const { manager, provider, mapping } = await buildManager(ha);
+    const location = {
+      areaIds: ["office"],
+      floorIds: [],
+      excludedDeviceIds: [],
+      excludedEntityIds: [] as string[],
+    };
+    provider.update({
+      id: provider.id,
+      name: provider.name,
+      port: provider.port,
+      featureFlags: { autoComposedDevices: true },
+      filter: { include: [], exclude: [], location },
+    });
+    mapping.put(provider.id, {
+      entityId: temperature,
+      composeDevice: true,
+      composedEntities: [
+        { entityId: humidity, matterDeviceType: "humidity_sensor" },
+      ],
+    });
+    const primary = () =>
+      [...manager.root.parts].find(
+        (part) => (part as EntityEndpoint).entityId === temperature,
+      ) as EntityEndpoint;
+    await manager.refreshDevices();
+    expect(primary().mappedEntityIds).toContain(humidity);
+    const number = primary().number;
+    location.excludedEntityIds = [humidity];
+    await manager.refreshDevices();
+    expect(primary().mappedEntityIds).not.toContain(humidity);
+    expect(primary().number).toBe(number);
+    expect(mountedEntityIds(manager)).toEqual([temperature]);
+    location.excludedEntityIds = [];
+    await manager.refreshDevices();
+    expect(primary().mappedEntityIds).toContain(humidity);
+    expect(primary().number).toBe(number);
+    expect(
+      mapping.getMapping(provider.id, temperature)?.composedEntities,
+    ).toHaveLength(1);
+  });
+
   it("removes an endpoint on the next refresh when the filter stops matching", async () => {
     const ha = makeHa();
     const { manager, provider } = await buildManager(ha);

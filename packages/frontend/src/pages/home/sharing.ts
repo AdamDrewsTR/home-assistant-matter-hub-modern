@@ -1,7 +1,27 @@
 import {
   type HomeAssistantFilter,
   HomeAssistantMatcherType,
+  type LocationSharing,
 } from "@home-assistant-matter-hub/common";
+
+export const emptyLocationSharing: LocationSharing = {
+  areaIds: [],
+  floorIds: [],
+  excludedDeviceIds: [],
+  excludedEntityIds: [],
+};
+
+export function locationFilter(location: LocationSharing): HomeAssistantFilter {
+  return { include: [], exclude: [], location };
+}
+
+export function editableLocation(
+  filter: HomeAssistantFilter,
+): LocationSharing | undefined {
+  return filter.location && !filter.include.length && !filter.exclude.length
+    ? filter.location
+    : undefined;
+}
 
 // An empty include array means "everything" to the bridge, not "nothing".
 export const emptySelectionFilter: HomeAssistantFilter = {
@@ -21,6 +41,7 @@ export function selectionFilter(ids: readonly string[]): HomeAssistantFilter {
 }
 
 export function selectedEntities(filter: HomeAssistantFilter): string[] | null {
+  if (filter.location) return null;
   if (filter.exclude.length || filter.includeMode === "all") return null;
   if (
     filter.include.length === 1 &&

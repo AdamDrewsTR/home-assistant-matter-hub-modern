@@ -39,8 +39,16 @@ import { useAppDispatch } from "../../state/hooks.ts";
 import { bridgeToConfig } from "../edit-bridge/bridge-to-config.ts";
 import { ChangePlanDialog } from "./ChangePlan.tsx";
 import { EntityPicker } from "./EntityPicker.tsx";
+import { LocationSharing } from "./LocationSharing.tsx";
 import { PairingChecklist } from "./PairingChecklist.tsx";
-import { selectedEntities, selectionFilter } from "./sharing.ts";
+import { SharingMode } from "./SharingMode.tsx";
+import {
+  editableLocation,
+  emptyLocationSharing,
+  locationFilter,
+  selectedEntities,
+  selectionFilter,
+} from "./sharing.ts";
 
 const BundlePanel = lazy(() =>
   import("./BundlePanel.tsx").then((module) => ({
@@ -62,6 +70,13 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
   const { t } = useTranslation();
   const updateBridge = useUpdateBridge();
   const [baseline, setBaseline] = useState(bridge.filter);
+  const savedLocation = editableLocation(baseline);
+  const [follow, setFollow] = useState(!!savedLocation);
+  const [locationSharing, setLocationSharing] = useState(
+    savedLocation ?? emptyLocationSharing,
+  );
+  const [locationPreview, setLocationPreview] = useState<string[]>();
+  const [locationSummary, setLocationSummary] = useState("");
   const original = selectedEntities(baseline);
   const [resolved, setResolved] = useState<string[]>();
   const [editingRules, setEditingRules] = useState(false);
@@ -75,14 +90,16 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
   const [review, setReview] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
   const [deviceBusy, setDeviceBusy] = useState(false);
-  const dirty =
-    editingRules ||
-    (original !== null &&
-      JSON.stringify([...selection].sort()) !==
-        JSON.stringify([...original].sort()));
-  const ruleBased = original === null;
+  const dirty = follow
+    ? !savedLocation ||
+      JSON.stringify(locationSharing) !== JSON.stringify(savedLocation)
+    : editingRules ||
+      (original !== null &&
+        JSON.stringify([...selection].sort()) !==
+          JSON.stringify([...original].sort()));
+  const ruleBased = original === null && !savedLocation;
   const readOnly =
-    bridge.featureFlags?.serverMode || (ruleBased && !editingRules);
+    bridge.featureFlags?.serverMode || (ruleBased && !editingRules && !follow);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Explicit retry reloads the same rules without altering them.
   useEffect(() => {
     if (selectedEntities(baseline) !== null) return;
@@ -138,12 +155,15 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
       const updated = await updateBridge({
         ...bridgeToConfig(current),
         id: bridge.id,
-        filter: selectionFilter(selection),
+        filter: follow
+          ? locationFilter(locationSharing)
+          : selectionFilter(selection),
       });
       setBaseline(updated.filter);
       setSelection(selectedEntities(updated.filter) ?? []);
       setSaved(true);
       setEditingRules(false);
+      setFollow(!!editableLocation(updated.filter));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("modern.saveFailed"));
       throw cause;
@@ -154,7 +174,21 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
 
   return (
     <Stack spacing={3}>
-      {ruleBased && (
+      {!bridge.featureFlags?.serverMode && (
+        <SharingMode
+          follow={follow}
+          disabled={saving || resolving || (ruleBased && !resolved)}
+          onChange={(next) => {
+            setFollow(next);
+            setSaved(false);
+            if (!next && original === null) {
+              setSelection(resolved ?? []);
+              setEditingRules(true);
+            }
+          }}
+        />
+      )}
+      {ruleBased && !follow && (
         <Alert
           severity="info"
           action={
@@ -166,7 +200,7 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
           {t(editingRules ? "homeBrowser.converting" : "homeBrowser.rules")}
         </Alert>
       )}
-      {ruleBased && !editingRules && (
+      {ruleBased && !editingRules && !follow && (
         <Button
           variant="outlined"
           disabled={resolving || !resolved || bridge.featureFlags?.serverMode}
@@ -196,7 +230,14 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
         <ChangePlanDialog
           open
           before={original ?? resolved ?? []}
-          after={selection}
+          after={follow ? (locationPreview ?? []) : selection}
+          notice={
+            follow
+              ? `${locationSummary} ${t("locationSharing.reviewWarning")}`
+              : savedLocation
+                ? t("locationSharing.stopWarning")
+                : undefined
+          }
           onClose={() => setReview(false)}
           onApply={save}
           onBusyChange={setSaving}
@@ -226,6 +267,10 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
                 setSelection(selectedEntities(bridge.filter) ?? []);
                 setSaved(false);
                 setEditingRules(false);
+                setFollow(!!editableLocation(bridge.filter));
+                setLocationSharing(
+                  editableLocation(bridge.filter) ?? emptyLocationSharing,
+                );
               }}
             >
               {t("modern.reloadSelection")}
@@ -236,17 +281,27 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
         </Alert>
       )}
       {saved && !dirty && <Alert severity="success">{t("modern.saved")}</Alert>}
-      <EntityPicker
-        bridge={bridge}
-        onEditorOpenChange={setDeviceOpen}
-        onEditorBusyChange={setDeviceBusy}
-        selected={selection}
-        onChange={(value) => {
-          setSelection(value);
-          setSaved(false);
-        }}
-        disabled={saving || readOnly || (ruleBased && !resolved)}
-      />
+      {follow ? (
+        <LocationSharing
+          value={locationSharing}
+          onChange={setLocationSharing}
+          onPreview={setLocationPreview}
+          onSummary={setLocationSummary}
+          disabled={saving || bridge.featureFlags?.serverMode}
+        />
+      ) : (
+        <EntityPicker
+          bridge={bridge}
+          onEditorOpenChange={setDeviceOpen}
+          onEditorBusyChange={setDeviceBusy}
+          selected={selection}
+          onChange={(value) => {
+            setSelection(value);
+            setSaved(false);
+          }}
+          disabled={saving || readOnly || (ruleBased && !resolved)}
+        />
+      )}
       {dirty && (
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -266,7 +321,11 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
         >
           <Box sx={{ flex: 1 }}>
             <Typography fontWeight={600}>
-              {t("modern.selectedCount", { count: selection.length })}
+              {t("modern.selectedCount", {
+                count: follow
+                  ? (locationPreview?.length ?? 0)
+                  : selection.length,
+              })}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {t(
@@ -281,13 +340,20 @@ function HubSharing({ bridge }: { bridge: BridgeDataWithMetadata }) {
             onClick={() => {
               setSelection(original ?? resolved ?? []);
               setEditingRules(false);
+              setFollow(!!savedLocation);
+              setLocationSharing(savedLocation ?? emptyLocationSharing);
             }}
           >
             {t("modern.discard")}
           </Button>
           <Button
             variant="contained"
-            disabled={saving || remoteChanged}
+            disabled={
+              saving ||
+              remoteChanged ||
+              resolving ||
+              (follow && locationPreview === undefined)
+            }
             onClick={() => setReview(true)}
           >
             {t(saving ? "modern.saving" : "modern.applyChanges")}

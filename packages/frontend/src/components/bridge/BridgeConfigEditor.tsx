@@ -191,6 +191,7 @@ export const BridgeConfigEditor = (props: BridgeConfigEditorProps) => {
 
         {editorMode === BridgeEditorMode.FIELDS_EDITOR && (
           <FormEditor
+            omitOptionalDefaults
             value={config ?? {}}
             onChange={onChange}
             schema={bridgeConfigSchema}

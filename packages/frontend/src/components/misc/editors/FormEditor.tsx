@@ -27,6 +27,7 @@ export interface FormEditorProps {
   customValidate?: (value: object | undefined) => ValidationError[];
   templates?: Partial<TemplatesType>;
   fields?: RegistryFieldsType;
+  omitOptionalDefaults?: boolean;
 }
 
 export const FormEditor = (props: FormEditorProps) => {
@@ -79,6 +80,11 @@ export const FormEditor = (props: FormEditorProps) => {
       onChange={(data) => onChange(data.formData, data.errors)}
       templates={props.templates}
       fields={props.fields}
+      experimental_defaultFormStateBehavior={
+        props.omitOptionalDefaults
+          ? { emptyObjectFields: "populateRequiredDefaults" }
+          : undefined
+      }
     />
   );
 };

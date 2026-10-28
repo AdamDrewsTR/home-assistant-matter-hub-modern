@@ -678,7 +678,9 @@ export class BridgeEndpointManager extends Service {
   }
 
   private getEntityMapping(entityId: string): EntityMappingConfig | undefined {
-    return this.mappingStorage.getMapping(this.bridgeId, entityId);
+    return this.registry.scopedMapping(
+      this.mappingStorage.getMapping(this.bridgeId, entityId),
+    );
   }
 
   override async dispose(): Promise<void> {

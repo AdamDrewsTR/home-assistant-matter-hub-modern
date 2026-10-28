@@ -2,6 +2,7 @@ import type {
   HomeAssistantAreaRegistry,
   HomeAssistantDeviceRegistry,
   HomeAssistantEntityRegistry,
+  HomeAssistantFloorRegistry,
 } from "@home-assistant-matter-hub/common";
 import type { Connection } from "home-assistant-js-websocket";
 import { sendHaMessage } from "../../../utils/send-ha-message.js";
@@ -13,6 +14,17 @@ export async function getRegistry(
   return sendHaMessage<HomeAssistantEntityRegistry[]>(
     connection,
     { type: "config/entity_registry/list" },
+    timeoutMs,
+  );
+}
+
+export async function getFloorRegistry(
+  connection: Connection,
+  timeoutMs?: number,
+): Promise<HomeAssistantFloorRegistry[]> {
+  return sendHaMessage<HomeAssistantFloorRegistry[]>(
+    connection,
+    { type: "config/floor_registry/list" },
     timeoutMs,
   );
 }

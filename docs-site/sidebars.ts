@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
       items: [
         "getting-started/installation",
         "getting-started/bridge-configuration",
+        "getting-started/sharing-devices",
         "getting-started/standalone-devices",
         "getting-started/migration-from-t0bst4r",
         "getting-started/fork-comparison",

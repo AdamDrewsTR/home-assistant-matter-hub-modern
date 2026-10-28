@@ -51,7 +51,22 @@ export class EntityMappingSync {
     const battery = entityId
       ? this.registry.batteryFingerprintFor(entityId, mapping)
       : "";
-    return JSON.stringify([mapping ?? null, battery || null]);
+    return this.fingerprint(mapping, battery, entityId);
+  }
+
+  private fingerprint(
+    mapping: EntityMappingConfig | undefined,
+    battery: string | null,
+    entityId?: string,
+  ) {
+    const companions = entityId
+      ? this.registry.locationCompanionFingerprint(entityId)
+      : undefined;
+    return JSON.stringify([
+      mapping ?? null,
+      battery || null,
+      ...(companions === undefined ? [] : [companions]),
+    ]);
   }
 
   // Live fingerprint for reconcile compares: when the resolver finds nothing
@@ -71,9 +86,10 @@ export class EntityMappingSync {
     if (!battery) return fingerprint;
     const deviceId = this.registry.entity(entityId)?.device_id;
     const stillSameDevice =
-      !!deviceId && this.registry.fullEntities[battery]?.device_id === deviceId;
+      !!deviceId &&
+      this.registry.entityIncludingUnfiltered(battery)?.device_id === deviceId;
     return stillSameDevice
-      ? JSON.stringify([mapping ?? null, battery])
+      ? this.fingerprint(mapping, battery, entityId)
       : fingerprint;
   }
 
@@ -90,7 +106,7 @@ export class EntityMappingSync {
     if (battery == null) return fingerprint;
     return (mappedEntityIds ?? []).includes(battery)
       ? fingerprint
-      : JSON.stringify([mapping ?? null, null]);
+      : this.fingerprint(mapping, null, entityId);
   }
 
   rebuildCandidates(entries: Iterable<[string, string]>): void {
