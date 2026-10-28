@@ -1,4 +1,4 @@
-version: "4.2.0-modern.4"
+version: "4.2.0-modern.5"
 image: ghcr.io/adamdrewstr/home-assistant-matter-hub-modern-addon
 slug: hamh
 name: Matter Hub Modern
