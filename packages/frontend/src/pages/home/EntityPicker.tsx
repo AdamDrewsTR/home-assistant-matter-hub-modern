@@ -230,7 +230,10 @@ export function EntityPicker({
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "200px minmax(0, 1fr)" },
+          gridTemplateColumns: {
+            xs: "minmax(0, 1fr)",
+            md: "200px minmax(0, 1fr)",
+          },
           gap: { xs: 2, md: 4 },
           alignItems: "start",
         }}
@@ -238,7 +241,7 @@ export function EntityPicker({
         <Box
           component="nav"
           aria-label={t("homeBrowser.spaces")}
-          sx={{ position: { md: "sticky" }, top: 16 }}
+          sx={{ position: { md: "sticky" }, top: 16, minWidth: 0 }}
         >
           <Typography variant="overline" color="text.secondary">
             {t("homeBrowser.spaces")}
@@ -264,7 +267,12 @@ export function EntityPicker({
                 aria-pressed={area === (id || "unassigned")}
                 variant={area === (id || "unassigned") ? "contained" : "text"}
                 onClick={() => setArea(id || "unassigned")}
-                sx={{ justifyContent: "space-between", gap: 1, flexShrink: 0 }}
+                sx={{
+                  justifyContent: "space-between",
+                  gap: 1,
+                  flexShrink: 0,
+                  overflowWrap: "anywhere",
+                }}
               >
                 {roomName(id)}
                 <Typography component="span" variant="caption">
@@ -283,7 +291,7 @@ export function EntityPicker({
         </Box>
         <Stack spacing={2.5} sx={{ minWidth: 0 }}>
           <Box>
-            <Typography variant="h2">
+            <Typography variant="h2" sx={{ overflowWrap: "anywhere" }}>
               {area
                 ? roomName(area === "unassigned" ? undefined : area)
                 : t("homeBrowser.wholeHome")}
@@ -425,7 +433,10 @@ export function EntityPicker({
             .map((areaId) => (
               <Box key={areaId || "unassigned"}>
                 {!area && (
-                  <Typography variant="h3" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="h3"
+                    sx={{ mb: 2, overflowWrap: "anywhere" }}
+                  >
                     {roomName(areaId)}
                   </Typography>
                 )}
@@ -433,7 +444,7 @@ export function EntityPicker({
                   sx={{
                     display: "grid",
                     gridTemplateColumns: {
-                      xs: "1fr",
+                      xs: "minmax(0, 1fr)",
                       lg: "repeat(2, minmax(0, 1fr))",
                     },
                     gap: 2,
@@ -498,6 +509,7 @@ export function EntityPicker({
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
+                                sx={{ overflowWrap: "anywhere" }}
                               >
                                 {[group.manufacturer, group.model]
                                   .filter(Boolean)

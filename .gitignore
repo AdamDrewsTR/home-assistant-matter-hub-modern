@@ -30,6 +30,8 @@ apps/home-assistant-matter-hub/LICENSE
 
 *.tsbuildinfo
 tmp/
+playwright-report/
+test-results/
 
 # Nested repositories
 home-assistant-addons/
